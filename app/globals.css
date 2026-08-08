@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-display: var(--font-bricolage);
+  --font-sans: var(--font-hanken);
+
+  --color-bg: #e4f3f4;
+  --color-ink: #16323a;
+  --color-charcoal: #2a201c;
+  --color-muted: #4c6d72;
+  --color-muted-2: #6f9297;
+  --color-teal: #0e8c99;
+  --color-teal-dark: #0a6e79;
+  --color-teal-tint: #e6f5f7;
+  --color-teal-shadow: #7fc9dc;
+  --color-border: #d8ebec;
+  --color-input: #f3fbfb;
+  --color-coral: #ed5f43;
+  --color-coral-tint: #fff3eb;
+  --color-nav-bg: rgba(243, 251, 251, 0.92);
+
+  /* the prototype's mobile nav collapse happens below 681px */
+  --breakpoint-md: 42.5625rem;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::placeholder {
+  color: #9bb8bc;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 8px;
+}
+
+@keyframes ccPop {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.select-chevron {
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='7'%3E%3Cpath d='M1 1l4.5 4.5L10 1' stroke='%23a08f84' stroke-width='1.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}

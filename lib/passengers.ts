@@ -1,0 +1,45 @@
+import type { OnboardingProfile, PartyType } from "./auth-context";
+import { PARTY_LABELS } from "./partyLabels";
+import { GOALS } from "./goals";
+
+export type Passenger = {
+  id: string;
+  t: PartyType;
+  av: string;
+  avBg: string;
+  who: string;
+  sub: string;
+  langs: string[];
+  country?: string;
+  goals: string[];
+  cue: string;
+};
+
+const AVATAR_BG: Record<PartyType, string> = {
+  family: "#dff1f2",
+  couple: "#fff3eb",
+  solo: "#fff3eb",
+  friends: "#fff3eb",
+};
+
+/** Builds a passenger card from a real joined_sailings row's stored profile. */
+export function passengerFromProfile(id: string, profile: OnboardingProfile): Passenger {
+  const sub =
+    profile.partyType === "family" && profile.kids.length
+      ? profile.kids.map((k) => `${k.gender || "Child"}${k.age ? " " + k.age : ""}`).join(", ")
+      : profile.ageRanges.length
+        ? `ages ${profile.ageRanges.map((a) => a.replace("-", "–")).join(", ")}`
+        : "";
+  return {
+    id,
+    t: profile.partyType,
+    av: profile.avatar,
+    avBg: AVATAR_BG[profile.partyType] ?? "#dff1f2",
+    who: PARTY_LABELS[profile.partyType],
+    sub,
+    langs: [],
+    country: profile.country || undefined,
+    goals: profile.goals.map((gid) => GOALS.find((g) => g.id === gid)?.label ?? gid),
+    cue: profile.bio || (profile.country ? `From ${profile.country}` : "Just joined"),
+  };
+}
