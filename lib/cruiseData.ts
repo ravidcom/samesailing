@@ -18,6 +18,7 @@ export type SailingDate = {
   itinerary: string;
   port: string;
   isoDate: string;
+  nights: number;
   region?: string;
   priceFromUsd?: number | null;
 };
@@ -177,6 +178,7 @@ async function buildRoyalCaribbeanShips(): Promise<Ship[]> {
       itinerary: `${r.itinerary} · ${r.nights} night${r.nights === 1 ? "" : "s"}`,
       port: r.embarkPort,
       isoDate: r.departDate,
+      nights: r.nights,
       region: r.region,
       priceFromUsd: r.priceFromUsd,
     });

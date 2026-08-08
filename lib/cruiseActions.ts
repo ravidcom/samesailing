@@ -6,6 +6,7 @@ import {
   type SailingDate,
   type SailingInfo,
 } from "./cruiseData";
+import { isSailingSearchable } from "./dateMath";
 
 /**
  * Server Actions — the only way client components should reach the ~3,400-record
@@ -24,12 +25,12 @@ export async function getShipsForLine(line: string): Promise<ShipOption[]> {
   return (cruiseLines[line] ?? []).map((s) => ({
     id: s.id,
     name: s.name,
-    hasSailings: s.dates.length > 0,
+    hasSailings: s.dates.some((d) => isSailingSearchable(d.isoDate, d.nights)),
   }));
 }
 
 export async function getDatesForShip(line: string, shipId: string): Promise<SailingDate[]> {
   const cruiseLines = await getCruiseLines();
   const ship = (cruiseLines[line] ?? []).find((s) => s.id === shipId);
-  return ship?.dates ?? [];
+  return (ship?.dates ?? []).filter((d) => isSailingSearchable(d.isoDate, d.nights));
 }
