@@ -5,9 +5,4 @@
  * from here, not from cruiseData, so the big dataset never ends up in their
  * bundle.
  */
-export const CRUISE_LINE_NAMES = [
-  "Royal Caribbean",
-  "MSC Cruises",
-  "Carnival",
-  "Norwegian",
-] as const;
+export const CRUISE_LINE_NAMES = ["Royal Caribbean"] as const;

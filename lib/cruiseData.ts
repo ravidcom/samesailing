@@ -195,33 +195,6 @@ async function buildRoyalCaribbeanShips(): Promise<Ship[]> {
 export async function getCruiseLines(): Promise<CruiseLines> {
   return {
     "Royal Caribbean": await buildRoyalCaribbeanShips(),
-    "MSC Cruises": [
-      {
-        id: "MSC_SEASCAPE",
-        name: "MSC Seascape",
-        dates: [
-          {
-            id: "MSC_SEA_20260808",
-            label: "August 8, 2026",
-            itinerary: "Caribbean & Bahamas · 7 nights",
-            port: "Miami, FL",
-            isoDate: "2026-08-08",
-          },
-          {
-            id: "MSC_SEA_20260822",
-            label: "August 22, 2026",
-            itinerary: "Caribbean & Bahamas · 7 nights",
-            port: "Miami, FL",
-            isoDate: "2026-08-22",
-          },
-        ],
-      },
-    ],
-    Carnival: [
-      { id: "CARN_CELEB", name: "Carnival Celebration", dates: [] },
-      { id: "CARN_MARDI", name: "Mardi Gras", dates: [] },
-    ],
-    Norwegian: [{ id: "NCL_ENCORE", name: "Norwegian Encore", dates: [] }],
   };
 }
 
@@ -263,11 +236,6 @@ export async function getSailingById(id: string): Promise<SailingInfo | null> {
 /** Sailings below this many joined travelers show a "founding member" pitch instead of a browse-first one. */
 export const MIN_BROWSE_THRESHOLD = 10;
 
-/** Hand-picked demo counts for a few sailings; anything else falls back to a stable hash-based count below. */
-const SAILING_MEMBERS: Record<string, number> = {
-  MSC_SEA_20260808: 2,
-};
-
 /** Cheap, stable string hash so the same sailing always gets the same synthetic member count. */
 function hashCount(id: string, max: number): number {
   let h = 0;
@@ -278,7 +246,6 @@ function hashCount(id: string, max: number): number {
 }
 
 export function memberCount(sailingId: string): number {
-  if (sailingId in SAILING_MEMBERS) return SAILING_MEMBERS[sailingId];
   return hashCount(sailingId, 18);
 }
 
