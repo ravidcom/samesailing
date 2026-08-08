@@ -179,7 +179,11 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     });
     setSubmitting(false);
     if (result.error) {
-      setError(result.error);
+      setError(
+        /already registered/i.test(result.error)
+          ? "An account with this email already exists. Go back to step 1 and use “Sign in” instead, or use a different email."
+          : result.error
+      );
       return;
     }
     setStep(5);

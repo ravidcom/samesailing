@@ -21,7 +21,7 @@ export default function NavBar() {
         </span>
       </Link>
 
-      <div className="flex items-center gap-1.5 md:gap-[5px]">
+      <div className="flex items-center gap-1 md:gap-[5px]">
         {loading ? null : loggedIn ? (
           <>
             <span className="hidden text-[13px] font-medium text-muted md:inline">
@@ -30,14 +30,14 @@ export default function NavBar() {
             {mySailings.length > 0 ? (
               <Link
                 href="/chat"
-                className="rounded-lg px-3 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
+                className="rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
               >
                 Chat
               </Link>
             ) : null}
             <Link
               href="/dashboard"
-              className="rounded-lg px-3 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
+              className="rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
             >
               Dashboard
             </Link>
@@ -47,7 +47,7 @@ export default function NavBar() {
                 signOut();
                 router.push("/");
               }}
-              className="rounded-full border-[1.5px] border-border px-3 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:border-teal hover:text-teal md:px-4 md:text-sm"
+              className="rounded-full border-[1.5px] border-border px-2.5 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:border-teal hover:text-teal md:px-4 md:text-sm"
             >
               Sign out
             </button>

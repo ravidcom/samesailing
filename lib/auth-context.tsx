@@ -184,6 +184,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function joinSailing(sailing: JoinedSailing) {
     if (!authUser) return { error: "You need to be signed in to join a sailing." };
+    const sameShipCount = mySailings.filter((s) => s.shipName === sailing.shipName).length;
+    if (sameShipCount >= 2) {
+      return { error: `You've already joined 2 sailings on ${sailing.shipName} — that's the limit per ship.` };
+    }
+    if (mySailings.length >= 5) {
+      return { error: "You've reached the limit of 5 joined sailings. Leave one to add another." };
+    }
     const { error } = await supabase.from("joined_sailings").insert({
       user_id: authUser.id,
       sailing_id: sailing.id,
