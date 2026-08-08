@@ -1,7 +1,7 @@
 "use server";
 
 import {
-  CRUISE_LINES,
+  getCruiseLines,
   getSailingById,
   type SailingDate,
   type SailingInfo,
@@ -20,7 +20,8 @@ export async function getSailingByIdAction(id: string): Promise<SailingInfo | nu
 export type ShipOption = { id: string; name: string; hasSailings: boolean };
 
 export async function getShipsForLine(line: string): Promise<ShipOption[]> {
-  return (CRUISE_LINES[line] ?? []).map((s) => ({
+  const cruiseLines = await getCruiseLines();
+  return (cruiseLines[line] ?? []).map((s) => ({
     id: s.id,
     name: s.name,
     hasSailings: s.dates.length > 0,
@@ -28,6 +29,7 @@ export async function getShipsForLine(line: string): Promise<ShipOption[]> {
 }
 
 export async function getDatesForShip(line: string, shipId: string): Promise<SailingDate[]> {
-  const ship = (CRUISE_LINES[line] ?? []).find((s) => s.id === shipId);
+  const cruiseLines = await getCruiseLines();
+  const ship = (cruiseLines[line] ?? []).find((s) => s.id === shipId);
   return ship?.dates ?? [];
 }

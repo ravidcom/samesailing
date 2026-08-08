@@ -5,7 +5,7 @@ import { getSailingById } from "@/lib/cruiseData";
 
 export default async function JoinPage({ params }: PageProps<"/join/[id]">) {
   const { id } = await params;
-  const sailing = getSailingById(id);
+  const sailing = await getSailingById(id);
   if (!sailing) notFound();
 
   return (

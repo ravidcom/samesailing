@@ -7,7 +7,7 @@ export default async function SailingResultPage({
   params,
 }: PageProps<"/sailing/[id]">) {
   const { id } = await params;
-  const sailing = getSailingById(id);
+  const sailing = await getSailingById(id);
   if (!sailing) notFound();
 
   const n = memberCount(sailing.id);

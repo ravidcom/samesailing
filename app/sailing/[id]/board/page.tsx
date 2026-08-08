@@ -2,14 +2,15 @@ import { notFound } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import BoardActions from "@/components/board/BoardActions";
 import PassengerBoard from "@/components/board/PassengerBoard";
-import { getSailingById, portsFor, countdownLabel } from "@/lib/cruiseData";
+import { getSailingById, portsFor } from "@/lib/cruiseData";
+import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { passengerFromProfile } from "@/lib/passengers";
 import { createServerClient } from "@/lib/supabase/server";
 import type { OnboardingProfile } from "@/lib/auth-context";
 
 export default async function BoardPage({ params }: PageProps<"/sailing/[id]/board">) {
   const { id } = await params;
-  const sailing = getSailingById(id);
+  const sailing = await getSailingById(id);
   if (!sailing) notFound();
 
   const supabase = createServerClient();
@@ -22,7 +23,7 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
     .map((r) => passengerFromProfile(r.user_id, r.profile));
 
   const ports = portsFor(sailing);
-  const countdown = countdownLabel(sailing.id);
+  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate));
   const nights = sailing.itinerary.match(/\d+/)?.[0] ?? "";
   const lineLabel = `${sailing.line} · ${nights} Nights`.toUpperCase();
   const dest = sailing.itinerary.split("·")[0].trim();

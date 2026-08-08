@@ -1,12 +1,16 @@
-import royalCaribbeanRaw from "./data/royal-caribbean-sailings.json";
-import { daysUntilDate, countdownLabelForDays } from "./dateMath";
+import { unstable_cache } from "next/cache";
+import fallbackRaw from "./data/royal-caribbean-sailings.json";
 
 /**
- * Server-only module: `royalCaribbeanRaw` is ~3,400 records (~700KB). Nothing
- * in this file should be imported directly by a "use client" component —
- * use lib/cruiseLineNames.ts for the line list, and lib/cruiseActions.ts
- * (Server Actions) for anything else the client needs to query.
+ * Server-only module: sailing data (~3,400 records) is fetched from a public
+ * Google Sheet (CSV export) so edits there show up on the site without a
+ * deploy. Nothing in this file should be imported directly by a "use client"
+ * component — use lib/cruiseLineNames.ts for the line list, and
+ * lib/cruiseActions.ts (Server Actions) for anything else the client needs.
  */
+
+const SHEET_CSV_URL =
+  "https://docs.google.com/spreadsheets/d/1tVy1lrkilQ8YJLnYEmywrdrJyIeXYhUI4TtsqnKFi3A/export?format=csv&gid=0";
 
 export type SailingDate = {
   id: string;
@@ -38,6 +42,116 @@ type RawSailing = {
   priceFromUsd: number | null;
 };
 
+/** Minimal RFC4180 parser: handles quoted fields with embedded commas/quotes/newlines. */
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      row.push(field);
+      field = "";
+    } else if (c === "\n") {
+      row.push(field);
+      rows.push(row);
+      row = [];
+      field = "";
+    } else if (c !== "\r") {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
+  return rows.filter((r) => r.some((cell) => cell.trim() !== ""));
+}
+
+function rowsToRawSailings(rows: string[][]): RawSailing[] {
+  if (rows.length < 2) return [];
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const col = (name: string) => header.indexOf(name);
+  const iId = col("sailing id");
+  const iShip = col("ship");
+  const iShipCode = col("ship code");
+  const iDepart = col("depart date");
+  const iNights = col("nights");
+  const iItinerary = col("itinerary");
+  const iRegion = col("region");
+  const iPort = col("embark port");
+  const iPrice = col("price from (usd)");
+
+  const out: RawSailing[] = [];
+  for (const r of rows.slice(1)) {
+    const id = r[iId]?.trim();
+    const ship = r[iShip]?.trim();
+    const shipCode = r[iShipCode]?.trim();
+    const departDate = r[iDepart]?.trim();
+    const nights = Number(r[iNights]);
+    const itinerary = r[iItinerary]?.trim();
+    const region = r[iRegion]?.trim();
+    const embarkPort = r[iPort]?.trim();
+    const priceRaw = r[iPrice]?.trim();
+    if (!id || !ship || !shipCode || !departDate || !itinerary || !region || !embarkPort) continue;
+    if (!Number.isFinite(nights)) continue;
+    out.push({
+      id,
+      ship,
+      shipCode,
+      departDate,
+      nights,
+      itinerary,
+      region,
+      embarkPort,
+      priceFromUsd: priceRaw ? Number(priceRaw) || null : null,
+    });
+  }
+  return out;
+}
+
+async function fetchSheetSailings(): Promise<RawSailing[]> {
+  const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Sheet fetch failed with status ${res.status}`);
+  const parsed = rowsToRawSailings(parseCsv(await res.text()));
+  if (parsed.length === 0) throw new Error("Sheet parsed to zero valid rows");
+  return parsed;
+}
+
+/**
+ * Cached for 5 minutes via Next's persistent data cache (survives across
+ * serverless invocations and deploys). Falls back to the bundled snapshot —
+ * captured when the dataset was first wired in — if the Sheet is unreachable
+ * or gets unshared, so a Sheet outage degrades gracefully instead of taking
+ * search down.
+ */
+const getRawSailings = unstable_cache(
+  async (): Promise<RawSailing[]> => {
+    try {
+      return await fetchSheetSailings();
+    } catch (err) {
+      console.error("Falling back to bundled sailing data — Sheet fetch failed:", err);
+      return fallbackRaw as RawSailing[];
+    }
+  },
+  ["royal-caribbean-sailings"],
+  { revalidate: 300 }
+);
+
 function formatDateLabel(iso: string): string {
   const [y, m, d] = iso.split("-").map(Number);
   return new Date(y, m - 1, d).toLocaleDateString("en-US", {
@@ -47,23 +161,24 @@ function formatDateLabel(iso: string): string {
   });
 }
 
-function buildRoyalCaribbeanShips(): Ship[] {
+async function buildRoyalCaribbeanShips(): Promise<Ship[]> {
+  const raw = await getRawSailings();
   const byShipCode = new Map<string, { name: string; dates: SailingDate[] }>();
 
-  for (const raw of royalCaribbeanRaw as RawSailing[]) {
-    let entry = byShipCode.get(raw.shipCode);
+  for (const r of raw) {
+    let entry = byShipCode.get(r.shipCode);
     if (!entry) {
-      entry = { name: raw.ship, dates: [] };
-      byShipCode.set(raw.shipCode, entry);
+      entry = { name: r.ship, dates: [] };
+      byShipCode.set(r.shipCode, entry);
     }
     entry.dates.push({
-      id: raw.id,
-      label: formatDateLabel(raw.departDate),
-      itinerary: `${raw.itinerary} · ${raw.nights} night${raw.nights === 1 ? "" : "s"}`,
-      port: raw.embarkPort,
-      isoDate: raw.departDate,
-      region: raw.region,
-      priceFromUsd: raw.priceFromUsd,
+      id: r.id,
+      label: formatDateLabel(r.departDate),
+      itinerary: `${r.itinerary} · ${r.nights} night${r.nights === 1 ? "" : "s"}`,
+      port: r.embarkPort,
+      isoDate: r.departDate,
+      region: r.region,
+      priceFromUsd: r.priceFromUsd,
     });
   }
 
@@ -77,36 +192,38 @@ function buildRoyalCaribbeanShips(): Ship[] {
   return ships;
 }
 
-export const CRUISE_LINES: CruiseLines = {
-  "Royal Caribbean": buildRoyalCaribbeanShips(),
-  "MSC Cruises": [
-    {
-      id: "MSC_SEASCAPE",
-      name: "MSC Seascape",
-      dates: [
-        {
-          id: "MSC_SEA_20260808",
-          label: "August 8, 2026",
-          itinerary: "Caribbean & Bahamas · 7 nights",
-          port: "Miami, FL",
-          isoDate: "2026-08-08",
-        },
-        {
-          id: "MSC_SEA_20260822",
-          label: "August 22, 2026",
-          itinerary: "Caribbean & Bahamas · 7 nights",
-          port: "Miami, FL",
-          isoDate: "2026-08-22",
-        },
-      ],
-    },
-  ],
-  Carnival: [
-    { id: "CARN_CELEB", name: "Carnival Celebration", dates: [] },
-    { id: "CARN_MARDI", name: "Mardi Gras", dates: [] },
-  ],
-  Norwegian: [{ id: "NCL_ENCORE", name: "Norwegian Encore", dates: [] }],
-};
+export async function getCruiseLines(): Promise<CruiseLines> {
+  return {
+    "Royal Caribbean": await buildRoyalCaribbeanShips(),
+    "MSC Cruises": [
+      {
+        id: "MSC_SEASCAPE",
+        name: "MSC Seascape",
+        dates: [
+          {
+            id: "MSC_SEA_20260808",
+            label: "August 8, 2026",
+            itinerary: "Caribbean & Bahamas · 7 nights",
+            port: "Miami, FL",
+            isoDate: "2026-08-08",
+          },
+          {
+            id: "MSC_SEA_20260822",
+            label: "August 22, 2026",
+            itinerary: "Caribbean & Bahamas · 7 nights",
+            port: "Miami, FL",
+            isoDate: "2026-08-22",
+          },
+        ],
+      },
+    ],
+    Carnival: [
+      { id: "CARN_CELEB", name: "Carnival Celebration", dates: [] },
+      { id: "CARN_MARDI", name: "Mardi Gras", dates: [] },
+    ],
+    Norwegian: [{ id: "NCL_ENCORE", name: "Norwegian Encore", dates: [] }],
+  };
+}
 
 export type SailingInfo = {
   id: string;
@@ -120,28 +237,27 @@ export type SailingInfo = {
   region?: string;
 };
 
-/** Flat id -> sailing index, built once at module load for O(1) lookups across ~3,400+ records. */
-const SAILING_INDEX = new Map<string, SailingInfo>();
-for (const [line, ships] of Object.entries(CRUISE_LINES)) {
-  for (const ship of ships) {
-    for (const d of ship.dates) {
-      SAILING_INDEX.set(d.id, {
-        id: d.id,
-        line,
-        shipId: ship.id,
-        shipName: ship.name,
-        date: d.label,
-        itinerary: d.itinerary,
-        port: d.port,
-        isoDate: d.isoDate,
-        region: d.region,
-      });
+export async function getSailingById(id: string): Promise<SailingInfo | null> {
+  const cruiseLines = await getCruiseLines();
+  for (const [line, ships] of Object.entries(cruiseLines)) {
+    for (const ship of ships) {
+      const d = ship.dates.find((date) => date.id === id);
+      if (d) {
+        return {
+          id: d.id,
+          line,
+          shipId: ship.id,
+          shipName: ship.name,
+          date: d.label,
+          itinerary: d.itinerary,
+          port: d.port,
+          isoDate: d.isoDate,
+          region: d.region,
+        };
+      }
     }
   }
-}
-
-export function getSailingById(id: string): SailingInfo | null {
-  return SAILING_INDEX.get(id) ?? null;
+  return null;
 }
 
 /** Sailings below this many joined travelers show a "founding member" pitch instead of a browse-first one. */
@@ -164,19 +280,6 @@ function hashCount(id: string, max: number): number {
 export function memberCount(sailingId: string): number {
   if (sailingId in SAILING_MEMBERS) return SAILING_MEMBERS[sailingId];
   return hashCount(sailingId, 18);
-}
-
-export function getIsoDate(sailingId: string): string | null {
-  return SAILING_INDEX.get(sailingId)?.isoDate ?? null;
-}
-
-export function daysUntilSailing(sailingId: string): number | null {
-  const iso = getIsoDate(sailingId);
-  return iso ? daysUntilDate(iso) : null;
-}
-
-export function countdownLabel(sailingId: string): string {
-  return countdownLabelForDays(daysUntilSailing(sailingId));
 }
 
 /**
