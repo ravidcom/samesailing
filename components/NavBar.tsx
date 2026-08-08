@@ -16,7 +16,9 @@ export default function NavBar() {
         className="flex cursor-pointer items-center gap-[7px] whitespace-nowrap font-display text-[16.5px] font-bold text-charcoal md:text-xl"
       >
         <LogoMark className="h-[25px] w-[25px] shrink-0" />
-        same<span className="text-teal">sailing.com</span>
+        <span>
+          same<span className="text-teal">sailing.com</span>
+        </span>
       </Link>
 
       <div className="flex items-center gap-1.5 md:gap-[5px]">
