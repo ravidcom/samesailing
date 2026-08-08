@@ -6,7 +6,9 @@ export default function Footer() {
     <footer className="border-t border-border px-8 py-9 text-center">
       <div className="mb-3 flex items-center justify-center gap-1.5 font-display text-base font-bold text-charcoal">
         <LogoMark className="h-[19px] w-[19px] shrink-0" />
-        same<span className="text-teal">sailing.com</span>
+        <span>
+          same<span className="text-teal">sailing.com</span>
+        </span>
       </div>
       <div className="flex flex-wrap justify-center gap-[22px] text-[13px] text-muted-2">
         <Link href="/privacy" className="hover:text-muted">
