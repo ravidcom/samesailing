@@ -2,8 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CRUISE_LINE_NAMES } from "@/lib/cruiseLineNames";
-import { getShipsForLine, getDatesForShip, type ShipOption } from "@/lib/cruiseActions";
+import {
+  getCruiseLineNamesAction,
+  getShipsForLine,
+  getDatesForShip,
+  type ShipOption,
+} from "@/lib/cruiseActions";
 import type { SailingDate } from "@/lib/cruiseData";
 
 export default function SearchForm() {
@@ -13,12 +17,23 @@ export default function SearchForm() {
   const [date, setDate] = useState("");
   const [error, setError] = useState("");
 
+  const [lineNames, setLineNames] = useState<string[]>([]);
   const [ships, setShips] = useState<ShipOption[]>([]);
   const [shipsLoading, setShipsLoading] = useState(false);
   const [dates, setDates] = useState<SailingDate[]>([]);
   const [datesLoading, setDatesLoading] = useState(false);
 
   const selectedShip = useMemo(() => ships.find((s) => s.id === ship), [ships, ship]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getCruiseLineNamesAction().then((result) => {
+      if (!cancelled) setLineNames(result);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!line) return;
@@ -102,8 +117,10 @@ export default function SearchForm() {
           onChange={(e) => handleLineChange(e.target.value)}
           className="select-chevron w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input py-3 pr-[34px] pl-[13px] font-sans text-sm text-charcoal"
         >
-          <option value="">Select a cruise line</option>
-          {CRUISE_LINE_NAMES.map((l) => (
+          <option value="">
+            {lineNames.length === 0 ? "Loading…" : "Select a cruise line"}
+          </option>
+          {lineNames.map((l) => (
             <option key={l} value={l}>
               {l}
             </option>

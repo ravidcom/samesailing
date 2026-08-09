@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  getCruiseLineNames,
   getCruiseLines,
   getSailingById,
   type SailingDate,
@@ -9,13 +10,18 @@ import {
 import { isSailingSearchable } from "./dateMath";
 
 /**
- * Server Actions — the only way client components should reach the ~3,400-record
- * Royal Caribbean dataset. Next.js compiles these into small RPC stubs on the
- * client; the actual data and lookup logic never enter the client bundle.
+ * Server Actions — the only way client components should reach the
+ * multi-thousand-record cruise dataset. Next.js compiles these into small
+ * RPC stubs on the client; the actual data and lookup logic never enter the
+ * client bundle.
  */
 
 export async function getSailingByIdAction(id: string): Promise<SailingInfo | null> {
   return getSailingById(id);
+}
+
+export async function getCruiseLineNamesAction(): Promise<string[]> {
+  return getCruiseLineNames();
 }
 
 export type ShipOption = { id: string; name: string; hasSailings: boolean };

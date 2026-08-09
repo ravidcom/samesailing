@@ -2,11 +2,12 @@ import { unstable_cache } from "next/cache";
 import fallbackRaw from "./data/royal-caribbean-sailings.json";
 
 /**
- * Server-only module: sailing data (~3,400 records) is fetched from a public
- * Google Sheet (CSV export) so edits there show up on the site without a
- * deploy. Nothing in this file should be imported directly by a "use client"
- * component — use lib/cruiseLineNames.ts for the line list, and
- * lib/cruiseActions.ts (Server Actions) for anything else the client needs.
+ * Server-only module: sailing data (~3,400+ records, multiple cruise lines)
+ * is fetched from a public Google Sheet (CSV export) so edits there —
+ * including adding a whole new line — show up on the site without a code
+ * change or deploy. Nothing in this file should be imported directly by a
+ * "use client" component — use lib/cruiseActions.ts (Server Actions) for
+ * anything the client needs.
  */
 
 const SHEET_CSV_URL =
@@ -33,6 +34,7 @@ export type CruiseLines = Record<string, Ship[]>;
 
 type RawSailing = {
   id: string;
+  line: string;
   ship: string;
   shipCode: string;
   departDate: string;
@@ -88,6 +90,7 @@ function rowsToRawSailings(rows: string[][]): RawSailing[] {
   const header = rows[0].map((h) => h.trim().toLowerCase());
   const col = (name: string) => header.indexOf(name);
   const iId = col("sailing id");
+  const iLine = col("line");
   const iShip = col("ship");
   const iShipCode = col("ship code");
   const iDepart = col("depart date");
@@ -100,6 +103,7 @@ function rowsToRawSailings(rows: string[][]): RawSailing[] {
   const out: RawSailing[] = [];
   for (const r of rows.slice(1)) {
     const id = r[iId]?.trim();
+    const line = r[iLine]?.trim();
     const ship = r[iShip]?.trim();
     const shipCode = r[iShipCode]?.trim();
     const departDate = r[iDepart]?.trim();
@@ -108,10 +112,11 @@ function rowsToRawSailings(rows: string[][]): RawSailing[] {
     const region = r[iRegion]?.trim();
     const embarkPort = r[iPort]?.trim();
     const priceRaw = r[iPrice]?.trim();
-    if (!id || !ship || !shipCode || !departDate || !itinerary || !region || !embarkPort) continue;
+    if (!id || !line || !ship || !shipCode || !departDate || !itinerary || !region || !embarkPort) continue;
     if (!Number.isFinite(nights)) continue;
     out.push({
       id,
+      line,
       ship,
       shipCode,
       departDate,
@@ -146,7 +151,12 @@ const getRawSailings = unstable_cache(
       return await fetchSheetSailings();
     } catch (err) {
       console.error("Falling back to bundled sailing data — Sheet fetch failed:", err);
-      return fallbackRaw as RawSailing[];
+      // The bundled snapshot predates the Sheet's "Line" column and is
+      // Royal-Caribbean-only by construction, so it has no `line` field.
+      return (fallbackRaw as Omit<RawSailing, "line">[]).map((r) => ({
+        ...r,
+        line: "Royal Caribbean",
+      }));
     }
   },
   ["royal-caribbean-sailings"],
@@ -162,15 +172,21 @@ function formatDateLabel(iso: string): string {
   });
 }
 
-async function buildRoyalCaribbeanShips(): Promise<Ship[]> {
+/** Groups raw sailings by line, then by ship — both derived from the data, not hardcoded. */
+async function buildCruiseLines(): Promise<CruiseLines> {
   const raw = await getRawSailings();
-  const byShipCode = new Map<string, { name: string; dates: SailingDate[] }>();
+  const byLine = new Map<string, Map<string, { name: string; dates: SailingDate[] }>>();
 
   for (const r of raw) {
-    let entry = byShipCode.get(r.shipCode);
+    let ships = byLine.get(r.line);
+    if (!ships) {
+      ships = new Map();
+      byLine.set(r.line, ships);
+    }
+    let entry = ships.get(r.shipCode);
     if (!entry) {
       entry = { name: r.ship, dates: [] };
-      byShipCode.set(r.shipCode, entry);
+      ships.set(r.shipCode, entry);
     }
     entry.dates.push({
       id: r.id,
@@ -184,20 +200,26 @@ async function buildRoyalCaribbeanShips(): Promise<Ship[]> {
     });
   }
 
-  const ships: Ship[] = [...byShipCode.entries()].map(([id, { name, dates }]) => ({
-    id,
-    name,
-    dates: dates.sort((a, b) => a.isoDate.localeCompare(b.isoDate)),
-  }));
-
-  ships.sort((a, b) => a.name.localeCompare(b.name));
-  return ships;
+  const cruiseLines: CruiseLines = {};
+  for (const [line, ships] of byLine) {
+    const shipList: Ship[] = [...ships.entries()].map(([id, { name, dates }]) => ({
+      id,
+      name,
+      dates: dates.sort((a, b) => a.isoDate.localeCompare(b.isoDate)),
+    }));
+    shipList.sort((a, b) => a.name.localeCompare(b.name));
+    cruiseLines[line] = shipList;
+  }
+  return cruiseLines;
 }
 
 export async function getCruiseLines(): Promise<CruiseLines> {
-  return {
-    "Royal Caribbean": await buildRoyalCaribbeanShips(),
-  };
+  return buildCruiseLines();
+}
+
+export async function getCruiseLineNames(): Promise<string[]> {
+  const cruiseLines = await getCruiseLines();
+  return Object.keys(cruiseLines).sort((a, b) => a.localeCompare(b));
 }
 
 export type SailingInfo = {
@@ -266,12 +288,16 @@ function stopsForRegion(region: string | undefined, itinerary: string): string[]
     case "Mexico & California":
       return ["Cabo San Lucas", "Mazatlán", "Puerto Vallarta"];
     case "Europe":
+    case "Mediterranean":
       return ["Barcelona", "Rome", "Santorini"];
+    case "Northern Europe":
+      return ["Bergen", "Copenhagen", "Amsterdam"];
     case "Alaska":
       return ["Juneau", "Skagway", "Ketchikan"];
     case "Asia":
       return ["Singapore", "Penang", "Phuket"];
     case "Pacific":
+    case "Transpacific":
       return ["Honolulu", "Sydney"];
     case "Bermuda":
       return ["King's Wharf"];
@@ -283,8 +309,13 @@ function stopsForRegion(region: string | undefined, itinerary: string): string[]
       return ["Sydney", "Auckland", "Brisbane"];
     case "Panama Canal":
       return ["Cartagena", "Panama Canal"];
+    case "South America & Antarctica":
+      return ["Buenos Aires", "Ushuaia"];
     default:
-      return ["Nassau", "Cozumel"];
+      // Unrecognized/ambiguous region (e.g. "Other") — no fabricated stops
+      // rather than guessing wrong. portsFor() degrades to just the home
+      // port with 0 "ports of call" shown, which is honest either way.
+      return [];
   }
 }
 
