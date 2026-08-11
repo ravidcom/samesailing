@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { createClient } from "@/lib/supabase/client";
 import { getSailingByIdAction } from "@/lib/cruiseActions";
+import { useAuth } from "@/lib/auth-context";
 
 function deriveName(metadata: Record<string, unknown> | undefined, email: string | null | undefined) {
   const name = (metadata?.full_name || metadata?.name || metadata?.preferred_username) as
@@ -18,6 +19,7 @@ function deriveName(metadata: Record<string, unknown> | undefined, email: string
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refreshUserData } = useAuth();
   const [error, setError] = useState("");
   const ran = useRef(false);
 
@@ -77,8 +79,15 @@ function CallbackHandler() {
           );
         }
       }
+      // AuthProvider's own auth-state listener may have already loaded
+      // mySailings for this session — possibly before the upsert above
+      // committed, caching it as empty until some later auth event (e.g. a
+      // token refresh, which can be a long time away) happens to reload it.
+      // Refresh explicitly here so the dashboard shows the join immediately.
+      await refreshUserData(user.id);
       router.push("/dashboard");
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, searchParams]);
 
   if (error) {

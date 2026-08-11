@@ -56,6 +56,7 @@ type AuthContextValue = {
   country: string;
   notifications: NotificationSettings;
   mySailings: JoinedSailing[];
+  refreshUserData: (userId: string) => Promise<void>;
   completeSignUp: (input: SignUpInput) => Promise<{ error?: string }>;
   logIn: (email: string, password: string) => Promise<{ error?: string }>;
   joinSailing: (sailing: JoinedSailing) => Promise<{ error?: string }>;
@@ -273,6 +274,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notifyDmAlerts: profile?.notify_dm_alerts ?? true,
     },
     mySailings,
+    refreshUserData: loadUserData,
     completeSignUp,
     logIn,
     joinSailing,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { getSailingById, memberCount, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
+import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 
 export default async function SailingResultPage({
   params,
@@ -12,6 +13,7 @@ export default async function SailingResultPage({
 
   const n = memberCount(sailing.id);
   const dense = n >= MIN_BROWSE_THRESHOLD;
+  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate));
 
   return (
     <>
@@ -19,14 +21,23 @@ export default async function SailingResultPage({
       <main className="flex min-h-screen items-start justify-center px-4 pt-[100px] pb-16">
         <div className="w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white shadow-[0_20px_50px_rgba(42,32,28,.08)]">
           <div className="rounded-t-[22px] bg-linear-to-br from-[#12a0ad] to-[#0a6e79] px-8 py-8 text-white">
-            <div className="mb-2 text-[12px] font-bold tracking-[.1em] text-white/90 uppercase">
-              {sailing.line}
-            </div>
-            <div className="font-display text-[26px] font-extrabold tracking-[-0.02em]">
-              {sailing.shipName}
-            </div>
-            <div className="mt-1.5 text-[15px] font-semibold text-[#bff0f2]">
-              {sailing.itinerary}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="mb-2 text-[12px] font-bold tracking-[.1em] text-white/90 uppercase">
+                  {sailing.line}
+                </div>
+                <div className="font-display text-[26px] font-extrabold tracking-[-0.02em]">
+                  {sailing.shipName}
+                </div>
+                <div className="mt-1.5 text-[15px] font-semibold text-[#bff0f2]">
+                  {sailing.itinerary}
+                </div>
+              </div>
+              {countdown ? (
+                <div className="shrink-0 whitespace-nowrap rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-xs font-bold">
+                  ⏳ {countdown}
+                </div>
+              ) : null}
             </div>
           </div>
 
