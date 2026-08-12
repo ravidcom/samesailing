@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useAuth, type PartyType } from "@/lib/auth-context";
 import type { Passenger } from "@/lib/passengers";
 import { flagUrl } from "@/lib/countryCodes";
+import PrideStripe from "@/components/ui/PrideStripe";
 
 const FILTERS: { id: "all" | PartyType; label: string }[] = [
   { id: "all", label: "All" },
@@ -73,13 +74,14 @@ export default function PassengerBoard({
             type="button"
             onClick={() => setLgbtqOnly((v) => !v)}
             aria-pressed={lgbtqOnly}
-            className={`shrink-0 rounded-full border-[1.5px] px-4 py-1.5 font-sans text-[13px] font-medium transition-all ${
+            className={`flex shrink-0 items-center gap-1.5 rounded-full border-[1.5px] px-4 py-1.5 font-sans text-[13px] font-medium transition-all ${
               lgbtqOnly
                 ? "border-teal bg-teal text-white"
                 : "border-border bg-white text-muted hover:border-teal hover:bg-teal hover:text-white"
             }`}
           >
-            🏳️‍🌈 LGBTQ+
+            <PrideStripe />
+            LGBTQ+
           </button>
         </div>
       </div>
@@ -119,8 +121,8 @@ export default function PassengerBoard({
                         {p.who}
                         {isMe ? " (you)" : ""}
                         {p.lgbtq ? (
-                          <span className="ml-1" title="LGBTQ+ community">
-                            🏳️‍🌈
+                          <span className="ml-1 inline-flex" title="LGBTQ+ community">
+                            <PrideStripe />
                           </span>
                         ) : null}
                       </div>
