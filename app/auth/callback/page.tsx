@@ -4,7 +4,6 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { createClient } from "@/lib/supabase/client";
-import { getSailingByIdAction } from "@/lib/cruiseActions";
 import { useAuth } from "@/lib/auth-context";
 
 function deriveName(metadata: Record<string, unknown> | undefined, email: string | null | undefined) {
@@ -57,35 +56,23 @@ function CallbackHandler() {
           country: "",
           avatar: "😊",
         });
-        router.push(joinId ? `/join/${joinId}` : "/join");
-        return;
       }
 
-      if (joinId) {
-        const sailing = await getSailingByIdAction(joinId);
-        if (sailing) {
-          await supabase.from("joined_sailings").upsert(
-            {
-              user_id: user.id,
-              sailing_id: sailing.id,
-              line: sailing.line,
-              ship_name: sailing.shipName,
-              sail_date: sailing.date,
-              itinerary: sailing.itinerary,
-              port: sailing.port,
-              profile: null,
-            },
-            { onConflict: "user_id,sailing_id", ignoreDuplicates: true }
-          );
-        }
-      }
       // AuthProvider's own auth-state listener may have already loaded
-      // mySailings for this session — possibly before the upsert above
-      // committed, caching it as empty until some later auth event (e.g. a
-      // token refresh, which can be a long time away) happens to reload it.
-      // Refresh explicitly here so the dashboard shows the join immediately.
+      // mySailings/profile for this session — possibly before the insert
+      // above committed, caching it as stale until some later auth event
+      // (e.g. a token refresh, which can be a long time away) happens to
+      // reload it. Refresh explicitly here so downstream pages see it now.
       await refreshUserData(user.id);
-      router.push("/dashboard");
+
+      // Route through the onboarding wizard for a specific sailing rather
+      // than joining it directly here — a returning user still needs to be
+      // asked their party type/country/goals *for this sailing* (that's
+      // per-sailing data, not part of their account), the same as a
+      // brand-new signup already was. Joining with a blank profile would
+      // leave them invisible on the passenger board (which filters out
+      // sailings with no profile) and unable to be matched with anyone.
+      router.push(joinId ? `/join/${joinId}` : "/dashboard");
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router, searchParams]);

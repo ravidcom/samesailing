@@ -185,23 +185,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function joinSailing(sailing: JoinedSailing) {
     if (!authUser) return { error: "You need to be signed in to join a sailing." };
-    const sameShipCount = mySailings.filter((s) => s.shipName === sailing.shipName).length;
-    if (sameShipCount >= 2) {
-      return { error: `You've already joined 2 sailings on ${sailing.shipName} — that's the limit per ship.` };
+    // Re-joining a sailing already on the account (e.g. clicking an old
+    // join link again) is an update, not a new addition — don't count it
+    // against the per-ship/total limits.
+    const alreadyJoined = mySailings.some((s) => s.id === sailing.id);
+    if (!alreadyJoined) {
+      const sameShipCount = mySailings.filter((s) => s.shipName === sailing.shipName).length;
+      if (sameShipCount >= 2) {
+        return { error: `You've already joined 2 sailings on ${sailing.shipName} — that's the limit per ship.` };
+      }
+      if (mySailings.length >= 5) {
+        return { error: "You've reached the limit of 5 joined sailings. Leave one to add another." };
+      }
     }
-    if (mySailings.length >= 5) {
-      return { error: "You've reached the limit of 5 joined sailings. Leave one to add another." };
-    }
-    const { error } = await supabase.from("joined_sailings").insert({
-      user_id: authUser.id,
-      sailing_id: sailing.id,
-      line: sailing.line,
-      ship_name: sailing.shipName,
-      sail_date: sailing.date,
-      itinerary: sailing.itinerary,
-      port: sailing.port,
-      profile: sailing.profile,
-    });
+    const { error } = await supabase.from("joined_sailings").upsert(
+      {
+        user_id: authUser.id,
+        sailing_id: sailing.id,
+        line: sailing.line,
+        ship_name: sailing.shipName,
+        sail_date: sailing.date,
+        itinerary: sailing.itinerary,
+        port: sailing.port,
+        profile: sailing.profile,
+      },
+      { onConflict: "user_id,sailing_id" }
+    );
     if (error) return { error: error.message };
     await loadUserData(authUser.id);
     return {};
