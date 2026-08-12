@@ -63,6 +63,14 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     }
   }, [auth.loading, auth.loggedIn, sailing, router]);
 
+  // Steps swap content in place (no real navigation), so the browser keeps
+  // whatever scroll position the previous step was left at — without this,
+  // advancing from a step you'd scrolled down on lands the next step
+  // mid-page instead of at its top.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [step]);
+
   function update(patch: Partial<OnboardingFormData>) {
     setData((d) => ({ ...d, ...patch }));
   }
