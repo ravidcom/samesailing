@@ -14,6 +14,7 @@ export type OnboardingFormData = {
   bio: string;
   country: string;
   goals: string[];
+  lgbtq: boolean;
   notifyActivity: boolean;
   notifyRecs: boolean;
   agreedTerms: boolean;
@@ -31,6 +32,7 @@ export const emptyFormData: OnboardingFormData = {
   bio: "",
   country: "",
   goals: [],
+  lgbtq: false,
   notifyActivity: false,
   notifyRecs: false,
   agreedTerms: false,

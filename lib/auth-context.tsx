@@ -23,6 +23,7 @@ export type OnboardingProfile = {
   country: string;
   goals: string[];
   avatar: string;
+  lgbtq: boolean;
 };
 
 export type JoinedSailing = {

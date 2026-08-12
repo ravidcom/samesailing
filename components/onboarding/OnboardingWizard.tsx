@@ -148,6 +148,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         bio: data.bio.trim(),
         country: data.country,
         goals: data.goals,
+        lgbtq: data.lgbtq,
         avatar,
       },
     };

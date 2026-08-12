@@ -13,6 +13,7 @@ export type Passenger = {
   country?: string;
   goals: string[];
   cue: string;
+  lgbtq: boolean;
 };
 
 const AVATAR_BG: Record<PartyType, string> = {
@@ -41,5 +42,7 @@ export function passengerFromProfile(id: string, profile: OnboardingProfile): Pa
     country: profile.country || undefined,
     goals: profile.goals.map((gid) => GOALS.find((g) => g.id === gid)?.label ?? gid),
     cue: profile.bio || (profile.country ? `From ${profile.country}` : "Just joined"),
+    // Older rows stored before this field existed won't have it.
+    lgbtq: profile.lgbtq ?? false,
   };
 }

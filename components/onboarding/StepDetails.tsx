@@ -5,6 +5,7 @@ import { COUNTRIES, COUNTRY_OTHER } from "@/lib/countries";
 import { GOALS } from "@/lib/goals";
 import type { StepProps } from "./types";
 import { fieldLabel, textInput, primaryButton, backLink, errorText } from "@/lib/formStyles";
+import Toggle from "@/components/ui/Toggle";
 
 const ALL_COUNTRIES = [...COUNTRIES, COUNTRY_OTHER];
 
@@ -90,6 +91,17 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
             </div>
           );
         })}
+      </div>
+
+      <div className="mt-[18px] flex items-center justify-between gap-3 rounded-[11px] border-[1.5px] border-border bg-input px-3.5 py-3">
+        <div>
+          <div className="text-sm font-semibold text-charcoal">🏳️‍🌈 LGBTQ+ community</div>
+          <div className="mt-0.5 text-xs leading-relaxed text-muted">
+            Show this on your card and let others filter for it. Optional, and
+            only visible to fellow passengers on this sailing.
+          </div>
+        </div>
+        <Toggle on={data.lgbtq} onChange={() => update({ lgbtq: !data.lgbtq })} />
       </div>
 
       {error ? <div className={errorText}>{error}</div> : null}

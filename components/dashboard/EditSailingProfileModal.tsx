@@ -33,6 +33,7 @@ function profileToFormData(sailing: JoinedSailing): OnboardingFormData {
     bio: p.bio,
     country: p.country,
     goals: p.goals,
+    lgbtq: p.lgbtq,
   };
 }
 
@@ -93,6 +94,7 @@ export default function EditSailingProfileModal({
       bio: data.bio.trim(),
       country: data.country,
       goals: data.goals,
+      lgbtq: data.lgbtq,
       avatar,
     });
     setSubmitting(false);

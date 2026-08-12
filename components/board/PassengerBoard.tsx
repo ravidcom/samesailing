@@ -31,6 +31,7 @@ export default function PassengerBoard({
 }) {
   const { loggedIn, userId, mySailings } = useAuth();
   const [filter, setFilter] = useState<"all" | PartyType>("all");
+  const [lgbtqOnly, setLgbtqOnly] = useState(false);
   const hasJoined = mySailings.some((s) => s.id === sailingId);
 
   const fullList = useMemo(() => {
@@ -40,7 +41,10 @@ export default function PassengerBoard({
   }, [passengers, userId]);
 
   const myGoals = fullList.find((p) => p.id === userId)?.goals ?? [];
-  const list = filter === "all" ? fullList : fullList.filter((p) => p.t === filter);
+  const list = fullList
+    .filter((p) => filter === "all" || p.t === filter)
+    .filter((p) => !lgbtqOnly || p.lgbtq);
+  const filtered = filter !== "all" || lgbtqOnly;
 
   return (
     <>
@@ -64,15 +68,28 @@ export default function PassengerBoard({
               {f.label}
             </button>
           ))}
+          <div className="h-5.5 w-px shrink-0 bg-border" />
+          <button
+            type="button"
+            onClick={() => setLgbtqOnly((v) => !v)}
+            aria-pressed={lgbtqOnly}
+            className={`shrink-0 rounded-full border-[1.5px] px-4 py-1.5 font-sans text-[13px] font-medium transition-all ${
+              lgbtqOnly
+                ? "border-teal bg-teal text-white"
+                : "border-border bg-white text-muted hover:border-teal hover:bg-teal hover:text-white"
+            }`}
+          >
+            🏳️‍🌈 LGBTQ+
+          </button>
         </div>
       </div>
 
       <div className="px-4 py-7 sm:px-8 md:px-12">
         <div className="mx-auto max-w-[1000px]">
           <div className="mb-3 text-xs font-semibold text-muted-2">
-            {filter === "all"
-              ? `${fullList.length} traveler${fullList.length === 1 ? "" : "s"} aboard`
-              : `${list.length} of ${fullList.length} travelers`}
+            {filtered
+              ? `${list.length} of ${fullList.length} travelers`
+              : `${fullList.length} traveler${fullList.length === 1 ? "" : "s"} aboard`}
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -101,6 +118,11 @@ export default function PassengerBoard({
                       <div className="text-sm font-bold text-charcoal">
                         {p.who}
                         {isMe ? " (you)" : ""}
+                        {p.lgbtq ? (
+                          <span className="ml-1" title="LGBTQ+ community">
+                            🏳️‍🌈
+                          </span>
+                        ) : null}
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-2">
                         {flag ? (
