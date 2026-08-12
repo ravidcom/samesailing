@@ -475,7 +475,7 @@ function ChatAppInner() {
   }
 
   return (
-    <main className="flex h-[calc(100vh-62px)] overflow-hidden pt-[62px]">
+    <main className="flex h-[calc(100vh-62px-60px)] overflow-hidden pt-[62px] md:h-[calc(100vh-62px)]">
       {/* SIDEBAR */}
       <div
         className={`w-full shrink-0 flex-col border-r border-border bg-white md:flex md:w-[312px] ${
