@@ -30,14 +30,14 @@ export default function NavBar() {
             {mySailings.length > 0 ? (
               <Link
                 href="/chat"
-                className="rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
+                className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
               >
                 Chat
               </Link>
             ) : null}
             <Link
               href="/dashboard"
-              className="rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
+              className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
             >
               Dashboard
             </Link>
