@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import SailingCard from "@/components/dashboard/SailingCard";
 import EditProfileModal from "@/components/dashboard/EditProfileModal";
@@ -9,9 +10,22 @@ import NotificationSettings from "@/components/dashboard/NotificationSettings";
 import NotificationLog from "@/components/dashboard/NotificationLog";
 import { useAuth } from "@/lib/auth-context";
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { loading, loggedIn, user, country, mySailings } = useAuth();
-  const [editingProfile, setEditingProfile] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const editParam = searchParams.get("edit");
+  const [editingProfile, setEditingProfile] = useState(editParam === "1");
+
+  // Mirror the modal to the ?edit=1 param whenever it changes (e.g. tapping
+  // the mobile Profile tab to open it, or Sailings to navigate away and
+  // close it) — render-time state sync, not an effect, since it only needs
+  // to react when editParam itself changes.
+  const [syncedEditParam, setSyncedEditParam] = useState(editParam);
+  if (editParam !== syncedEditParam) {
+    setSyncedEditParam(editParam);
+    setEditingProfile(editParam === "1");
+  }
 
   if (loading) {
     return (
@@ -104,7 +118,21 @@ export default function DashboardPage() {
         <NotificationSettings />
       </main>
 
-      <EditProfileModal open={editingProfile} onClose={() => setEditingProfile(false)} />
+      <EditProfileModal
+        open={editingProfile}
+        onClose={() => {
+          setEditingProfile(false);
+          if (editParam === "1") router.replace("/dashboard");
+        }}
+      />
     </>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardContent />
+    </Suspense>
   );
 }

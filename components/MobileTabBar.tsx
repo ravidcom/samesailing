@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 function ShipIcon() {
@@ -44,6 +44,8 @@ function ProfileIcon() {
 export default function MobileTabBar() {
   const { loggedIn, mySailings } = useAuth();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editingProfile = searchParams.get("edit") === "1";
 
   if (!loggedIn) return null;
 
@@ -54,11 +56,16 @@ export default function MobileTabBar() {
   // sailing card has its own Passengers link.
   const passengersHref = mySailings.length === 1 ? `/sailing/${mySailings[0].id}/board` : "/dashboard";
 
+  // Profile has no separate route — it lives at the top of the dashboard.
+  // Rather than linking to the same URL as Sailings (which made both tabs
+  // indistinguishable and highlighted at once), Profile links to a
+  // ?edit=1 variant that auto-opens the account-edit modal, giving it a
+  // visibly distinct destination and its own active state.
   const tabs = [
-    { key: "sailings", label: "Sailings", href: "/dashboard", icon: <ShipIcon />, active: pathname === "/dashboard" },
+    { key: "sailings", label: "Sailings", href: "/dashboard", icon: <ShipIcon />, active: pathname === "/dashboard" && !editingProfile },
     { key: "passengers", label: "Passengers", href: passengersHref, icon: <PeopleIcon />, active: pathname.endsWith("/board") },
     { key: "chat", label: "Chat", href: "/chat", icon: <ChatIcon />, active: pathname === "/chat" },
-    { key: "profile", label: "Profile", href: "/dashboard", icon: <ProfileIcon />, active: pathname === "/dashboard" },
+    { key: "profile", label: "Profile", href: "/dashboard?edit=1", icon: <ProfileIcon />, active: pathname === "/dashboard" && editingProfile },
   ];
 
   return (
