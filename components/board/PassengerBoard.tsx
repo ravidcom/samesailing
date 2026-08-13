@@ -121,7 +121,7 @@ export default function PassengerBoard({
                         {p.who}
                         {isMe ? " (you)" : ""}
                         {p.lgbtq ? (
-                          <span className="ml-1 inline-flex" title="LGBTQ+ community">
+                          <span className="ml-1" title="LGBTQ+ community">
                             <PrideStripe />
                           </span>
                         ) : null}
