@@ -13,11 +13,11 @@ export default function NavBar() {
     <nav className="fixed inset-x-0 top-0 z-[200] flex h-[62px] items-center justify-between border-b border-border bg-nav-bg px-3.5 backdrop-blur-md md:px-10">
       <Link
         href="/"
-        className="flex cursor-pointer items-center gap-[5px] whitespace-nowrap font-display text-[16.5px] font-bold text-charcoal md:text-xl"
+        className="flex cursor-pointer items-center gap-[5px] whitespace-nowrap font-display text-[19.5px] font-bold text-charcoal md:text-2xl"
       >
-        <LogoMark className="h-[28px] w-[28px] shrink-0" />
+        <LogoMark className="h-[33px] w-[33px] shrink-0" />
         <span>
-          same<span className="text-teal">sailing.com</span>
+          same<span className="text-teal">sailing</span>
         </span>
       </Link>
 

@@ -4,10 +4,10 @@ import LogoMark from "./LogoMark";
 export default function Footer() {
   return (
     <footer className="border-t border-border px-8 py-9 text-center">
-      <div className="mb-3 flex items-center justify-center gap-1 font-display text-base font-bold text-charcoal">
-        <LogoMark className="h-[22px] w-[22px] shrink-0" />
+      <div className="mb-3 flex items-center justify-center gap-1 font-display text-[19px] font-bold text-charcoal">
+        <LogoMark className="h-[26px] w-[26px] shrink-0" />
         <span>
-          same<span className="text-teal">sailing.com</span>
+          same<span className="text-teal">sailing</span>
         </span>
       </div>
       <div className="flex flex-wrap justify-center gap-[22px] text-[13px] text-muted-2">
