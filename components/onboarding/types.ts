@@ -1,4 +1,5 @@
 import type { PartyType } from "@/lib/auth-context";
+import type { NameMode } from "@/lib/displayName";
 
 export type Kid = { gender: string; age: string };
 
@@ -15,6 +16,9 @@ export type OnboardingFormData = {
   country: string;
   goals: string[];
   lgbtq: boolean;
+  nameMode: NameMode;
+  nickname: string;
+  lastInitial: string;
   notifyActivity: boolean;
   notifyRecs: boolean;
   agreedTerms: boolean;
@@ -33,6 +37,9 @@ export const emptyFormData: OnboardingFormData = {
   country: "",
   goals: [],
   lgbtq: false,
+  nameMode: "anon",
+  nickname: "",
+  lastInitial: "",
   notifyActivity: false,
   notifyRecs: false,
   agreedTerms: false,

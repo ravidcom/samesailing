@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "./supabase/client";
+import { resolveDisplayName, type NameMode } from "./displayName";
 
 export type PartyType = "family" | "couple" | "solo" | "friends";
 
@@ -45,6 +46,9 @@ type SignUpInput = {
   avatar: string;
   country: string;
   sailing: JoinedSailing | null;
+  nameMode?: NameMode;
+  nickname?: string;
+  lastInitial?: string;
 };
 
 type NotificationSettings = { notifyDigest: boolean; notifyDmAlerts: boolean };
@@ -58,16 +62,28 @@ type AuthContextValue = {
   notifications: NotificationSettings;
   mySailings: JoinedSailing[];
   hasUnreadMessages: boolean;
+  unreadCount: number;
   markChatSeen: () => void;
   profileModalOpen: boolean;
   showProfileModal: (open: boolean) => void;
+  nameMode: NameMode;
+  nickname: string;
+  lastInitial: string;
+  /** Resolves what I'm labelled as for a given (per-sailing) party type — the handle noun differs by party type, so this needs to know which sailing's context it's being shown in. */
+  myDisplayName: (partyType: PartyType | null) => { name: string; anon: boolean };
   refreshUserData: (userId: string) => Promise<void>;
   completeSignUp: (input: SignUpInput) => Promise<{ error?: string }>;
   logIn: (email: string, password: string) => Promise<{ error?: string }>;
   joinSailing: (sailing: JoinedSailing) => Promise<{ error?: string }>;
   updateSailingProfile: (sailingId: string, profile: OnboardingProfile) => Promise<{ error?: string }>;
   removeSailing: (sailingId: string) => Promise<void>;
-  updateAccount: (patch: { name?: string; country?: string }) => Promise<void>;
+  updateAccount: (patch: {
+    name?: string;
+    country?: string;
+    nameMode?: NameMode;
+    nickname?: string;
+    lastInitial?: string;
+  }) => Promise<void>;
   updateNotificationSettings: (patch: Partial<NotificationSettings>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -81,7 +97,12 @@ type ProfileRow = {
   avatar: string;
   notify_digest: boolean;
   notify_dm_alerts: boolean;
+  name_mode: NameMode;
+  nickname: string;
+  last_initial: string;
 };
+
+const PROFILE_COLUMNS = "id,name,country,avatar,notify_digest,notify_dm_alerts,name_mode,nickname,last_initial";
 type JoinedSailingRow = {
   sailing_id: string;
   line: string;
@@ -120,14 +141,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [mySailings, setMySailings] = useState<JoinedSailing[]>([]);
-  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   async function loadUserData(userId: string) {
     const [{ data: profileRow }, { data: sailingRows }] = await Promise.all([
       supabase
         .from("profiles")
-        .select("id,name,country,avatar,notify_digest,notify_dm_alerts")
+        .select(PROFILE_COLUMNS)
         .eq("id", userId)
         .maybeSingle(),
       supabase
@@ -153,7 +174,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null);
         setMySailings([]);
-        setHasUnreadMessages(false);
+        setUnreadCount(0);
         setProfileModalOpen(false);
       }
     });
@@ -162,15 +183,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Drives the "Chat" badge in the nav/tab bar: true whenever a notification
-  // (group or DM message) has landed since the user last visited /chat.
+  // Drives the "Chat" badge count in the nav/tab bar: how many notifications
+  // (group or DM messages) have landed since the user last visited /chat.
   // "Seen" is tracked client-side (localStorage) rather than in the DB —
   // there's no cross-device requirement here, and it keeps this independent
   // of the notify_digest/notify_dm_alerts toggles (those gate the log entry
   // itself, not the badge).
   useEffect(() => {
     const currentUserId = authUser?.id;
-    // Resetting to false on logout is handled by the onAuthStateChange
+    // Resetting to 0 on logout is handled by the onAuthStateChange
     // listener above, alongside clearing profile/mySailings.
     if (!currentUserId) return;
     let cancelled = false;
@@ -181,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .eq("user_id", currentUserId)
       .gt("created_at", seenAt)
       .then(({ count }) => {
-        if (!cancelled) setHasUnreadMessages((count ?? 0) > 0);
+        if (!cancelled) setUnreadCount(count ?? 0);
       });
 
     const channel = supabase
@@ -189,7 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${currentUserId}` },
-        () => setHasUnreadMessages(true)
+        () => setUnreadCount((c) => c + 1)
       )
       .subscribe();
 
@@ -202,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   function markChatSeen() {
     if (!authUser) return;
     localStorage.setItem(chatSeenKey(authUser.id), new Date().toISOString());
-    setHasUnreadMessages(false);
+    setUnreadCount(0);
   }
 
   // Named action (not a raw setter) so effects that call it from other
@@ -213,7 +234,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfileModalOpen(open);
   }
 
-  async function completeSignUp({ name, email, password, avatar, country, sailing }: SignUpInput) {
+  function myDisplayName(partyType: PartyType | null): { name: string; anon: boolean } {
+    if (!authUser) return { name: "Traveler", anon: true };
+    return resolveDisplayName(authUser.id, partyType ?? "solo", {
+      nameMode: profile?.name_mode ?? "anon",
+      nickname: profile?.nickname ?? "",
+      name: profile?.name ?? "",
+      lastInitial: profile?.last_initial ?? "",
+    });
+  }
+
+  async function completeSignUp({
+    name,
+    email,
+    password,
+    avatar,
+    country,
+    sailing,
+    nameMode,
+    nickname,
+    lastInitial,
+  }: SignUpInput) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
     if (!data.user || !data.session) {
@@ -224,9 +265,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const userId = data.user.id;
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({ id: userId, name, country, avatar });
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      name,
+      country,
+      avatar,
+      name_mode: nameMode ?? "anon",
+      nickname: nickname ?? "",
+      last_initial: lastInitial ?? "",
+    });
     if (profileError) return { error: profileError.message };
 
     if (sailing) {
@@ -311,13 +358,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMySailings((prev) => prev.filter((s) => s.id !== sailingId));
   }
 
-  async function updateAccount(patch: { name?: string; country?: string }) {
+  async function updateAccount(patch: {
+    name?: string;
+    country?: string;
+    nameMode?: NameMode;
+    nickname?: string;
+    lastInitial?: string;
+  }) {
     if (!authUser) return;
+    const dbPatch: Partial<Pick<ProfileRow, "name" | "country" | "name_mode" | "nickname" | "last_initial">> = {};
+    if (patch.name !== undefined) dbPatch.name = patch.name;
+    if (patch.country !== undefined) dbPatch.country = patch.country;
+    if (patch.nameMode !== undefined) dbPatch.name_mode = patch.nameMode;
+    if (patch.nickname !== undefined) dbPatch.nickname = patch.nickname;
+    if (patch.lastInitial !== undefined) dbPatch.last_initial = patch.lastInitial;
     const { data } = await supabase
       .from("profiles")
-      .update(patch)
+      .update(dbPatch)
       .eq("id", authUser.id)
-      .select("id,name,country,avatar,notify_digest,notify_dm_alerts")
+      .select(PROFILE_COLUMNS)
       .maybeSingle();
     if (data) setProfile(data);
   }
@@ -331,7 +390,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .from("profiles")
       .update(dbPatch)
       .eq("id", authUser.id)
-      .select("id,name,country,avatar,notify_digest,notify_dm_alerts")
+      .select(PROFILE_COLUMNS)
       .maybeSingle();
     if (data) setProfile(data);
   }
@@ -353,10 +412,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notifyDmAlerts: profile?.notify_dm_alerts ?? true,
     },
     mySailings,
-    hasUnreadMessages,
+    hasUnreadMessages: unreadCount > 0,
+    unreadCount,
     markChatSeen,
     profileModalOpen,
     showProfileModal,
+    nameMode: profile?.name_mode ?? "anon",
+    nickname: profile?.nickname ?? "",
+    lastInitial: profile?.last_initial ?? "",
+    myDisplayName,
     refreshUserData: loadUserData,
     completeSignUp,
     logIn,

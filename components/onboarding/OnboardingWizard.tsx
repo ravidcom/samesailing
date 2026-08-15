@@ -185,6 +185,9 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
       avatar,
       country: data.country,
       sailing: joinedSailing,
+      nameMode: data.nameMode,
+      nickname: data.nickname.trim(),
+      lastInitial: data.lastInitial.trim(),
     });
     setSubmitting(false);
     if (result.error) {
@@ -248,6 +251,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
             onFinish={finish}
             onBack={() => goBack(3)}
             submitting={submitting}
+            loggedIn={auth.loggedIn}
           />
         ) : null}
         {step === 5 ? (

@@ -18,9 +18,28 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
     .from("joined_sailings")
     .select("user_id,profile")
     .eq("sailing_id", sailing.id);
-  const passengers = (rows ?? [])
-    .filter((r): r is { user_id: string; profile: OnboardingProfile } => !!r.profile)
-    .map((r) => passengerFromProfile(r.user_id, r.profile));
+  const joined = (rows ?? []).filter(
+    (r): r is { user_id: string; profile: OnboardingProfile } => !!r.profile
+  );
+
+  // Display names are account-level (lib/displayName.ts), not stored in the
+  // per-sailing profile, so they need a separate join against `profiles`.
+  const { data: nameRows } = await supabase
+    .from("profiles")
+    .select("id,name,name_mode,nickname,last_initial")
+    .in(
+      "id",
+      joined.map((r) => r.user_id)
+    );
+  const namesById = new Map((nameRows ?? []).map((r) => [r.id, r]));
+
+  const passengers = joined.map((r) => {
+    const n = namesById.get(r.user_id);
+    const nameFields = n
+      ? { nameMode: n.name_mode, nickname: n.nickname, name: n.name, lastInitial: n.last_initial }
+      : null;
+    return passengerFromProfile(r.user_id, r.profile, nameFields);
+  });
 
   const ports = portsFor(sailing);
   const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate));

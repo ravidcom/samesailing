@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
+import NameModePicker from "@/components/NameModePicker";
 import { useAuth } from "@/lib/auth-context";
+import type { NameMode } from "@/lib/displayName";
 import { fieldLabel, textInput, primaryButton } from "@/lib/formStyles";
 
 export default function EditProfileModal({
@@ -12,22 +14,50 @@ export default function EditProfileModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { user, country, updateAccount } = useAuth();
+  const { user, country, mySailings, nameMode, nickname, lastInitial, myDisplayName, updateAccount } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [countryDraft, setCountryDraft] = useState(country);
+  const [modeDraft, setModeDraft] = useState<NameMode>(nameMode);
+  const [nickDraft, setNickDraft] = useState(nickname);
+  const [lastInitialDraft, setLastInitialDraft] = useState(lastInitial);
+
+  // Only used to give the handle preview a representative party type — the
+  // handle itself is stable per sailing, this just shows a realistic example.
+  const previewPartyType = mySailings[0]?.profile?.partyType ?? null;
+  const handlePreview = myDisplayName(previewPartyType).name;
 
   function save() {
-    updateAccount({ name: name.trim() || user?.name, country: countryDraft.trim() });
+    updateAccount({
+      name: name.trim() || user?.name,
+      country: countryDraft.trim(),
+      nameMode: modeDraft,
+      nickname: nickDraft.trim(),
+      lastInitial: lastInitialDraft.trim(),
+    });
+    onClose();
+  }
+
+  function reset() {
+    setName(user?.name ?? "");
+    setCountryDraft(country);
+    setModeDraft(nameMode);
+    setNickDraft(nickname);
+    setLastInitialDraft(lastInitial);
+  }
+
+  function close() {
+    reset();
     onClose();
   }
 
   return (
-    <Modal open={open} onClose={onClose}>
+    <Modal open={open} onClose={close}>
       <div className="mb-1 font-display text-lg font-bold text-charcoal">My profile</div>
       <div className="mb-4 text-xs text-muted-2">
         Details that stay the same across all your sailings.
       </div>
 
+      <div className="max-h-[65vh] overflow-y-auto pr-1">
       <label className={fieldLabel}>First name</label>
       <input className={textInput} value={name} onChange={(e) => setName(e.target.value)} />
 
@@ -41,15 +71,33 @@ export default function EditProfileModal({
         value={countryDraft}
         onChange={(e) => setCountryDraft(e.target.value)}
       />
-      <p className="mt-2.5 text-[11.5px] leading-relaxed text-muted-2">
+
+      <label className={fieldLabel + " mt-4"}>How you appear to other passengers</label>
+      <p className="mb-2.5 text-[11.5px] leading-relaxed text-muted-2">
+        Only fellow travelers on your sailings can see this. Never your contact details.
+      </p>
+
+      <NameModePicker
+        mode={modeDraft}
+        onModeChange={setModeDraft}
+        nickname={nickDraft}
+        onNicknameChange={setNickDraft}
+        lastInitial={lastInitialDraft}
+        onLastInitialChange={setLastInitialDraft}
+        firstName={name}
+        anonExample={handlePreview}
+      />
+
+      <p className="mt-3 text-[11.5px] leading-relaxed text-muted-2">
         Who&apos;s coming and what you&apos;re looking for are set per sailing — edit them
         on each cruise card.
       </p>
+      </div>
 
       <div className="mt-5 flex gap-2.5">
         <button
           type="button"
-          onClick={onClose}
+          onClick={close}
           className="flex-1 rounded-xl border-[1.5px] border-border py-2.5 font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
         >
           Cancel
