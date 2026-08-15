@@ -322,5 +322,11 @@ function stopsForRegion(region: string | undefined, itinerary: string): string[]
 export function portsFor(sailing: SailingInfo): string[] {
   const home = sailing.port.split(",")[0];
   const stops = stopsForRegion(sailing.region, sailing.itinerary);
-  return [home, ...stops, home];
+  // One-way/repositioning itineraries ("Transatlantic Barcelona to Fort
+  // Lauderdale", "Alaska one-way Seward to Vancouver") end at a different
+  // port than they start — the destination is embedded in the itinerary
+  // text itself, so pull it out instead of always looping back to home.
+  const oneWayMatch = sailing.itinerary.match(/ to ([^·]+)/i);
+  const endPort = oneWayMatch ? oneWayMatch[1].trim() : home;
+  return [home, ...stops, endPort];
 }
