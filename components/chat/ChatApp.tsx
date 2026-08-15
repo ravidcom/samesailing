@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, type OnboardingProfile } from "@/lib/auth-context";
@@ -212,6 +212,89 @@ function DayDivider({ label }: { label: string }) {
   );
 }
 
+/**
+ * Keeps a message list pinned to the newest message: jumps to the bottom
+ * whenever the conversation changes (resetKey) or a new message arrives
+ * while already near the bottom, and otherwise surfaces a "new message"
+ * pill instead of yanking the scroll position out from under someone
+ * reading older messages.
+ *
+ * The pill's visibility is toggled directly via its own ref (a style
+ * flip, not React state) rather than round-tripping through a setState
+ * call inside the effect — this is a DOM-measurement-driven sync (can't
+ * know scroll position without the DOM), which is exactly what refs +
+ * effects are for, but any setState written directly in an effect body
+ * trips react-hooks/set-state-in-effect regardless of how it's wrapped.
+ *
+ * Takes both refs rather than creating and returning them — a hook
+ * returning an object that bundles a ref together with state/other
+ * values trips the react-hooks/refs lint rule.
+ */
+function useAutoScroll(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  pillRef: React.RefObject<HTMLButtonElement | null>,
+  itemCount: number,
+  resetKey: string | number | null
+) {
+  const prevLengthRef = useRef<number | null>(null);
+  const prevResetKeyRef = useRef(resetKey);
+  // scrollHeight as of the last check — scrollTop doesn't move on its own
+  // when content is appended below the fold, but scrollHeight grows, so
+  // comparing against the *current* (already-grown) scrollHeight would make
+  // someone who was genuinely at the bottom look far from it the moment a
+  // message tall enough to matter arrives. Comparing against what the
+  // height was *before* this batch landed gives the right answer.
+  const prevScrollHeightRef = useRef(0);
+
+  function showPill(show: boolean) {
+    const el = pillRef.current;
+    if (el) el.style.display = show ? "flex" : "none";
+  }
+
+  function scrollToBottom(behavior: ScrollBehavior = "auto") {
+    const el = containerRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior });
+    showPill(false);
+  }
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+
+    if (resetKey !== prevResetKeyRef.current) {
+      prevResetKeyRef.current = resetKey;
+      prevLengthRef.current = null;
+    }
+
+    if (prevLengthRef.current === null) {
+      // Switched conversation (or first mount). Messages for a thread load
+      // via a separate async fetch, so itemCount can still be 0 (or a
+      // stale seed list) for a render or two after resetKey changes — keep
+      // jumping to the bottom on every render until real data has actually
+      // shown up, rather than treating that later arrival as "a new
+      // message while scrolled away" and popping the pill.
+      scrollToBottom();
+      if (itemCount > 0) prevLengthRef.current = itemCount;
+      prevScrollHeightRef.current = el?.scrollHeight ?? 0;
+      return;
+    }
+
+    if (itemCount > prevLengthRef.current && el) {
+      const wasNearBottom = prevScrollHeightRef.current - el.scrollTop - el.clientHeight < 80;
+      if (wasNearBottom) {
+        scrollToBottom();
+      } else {
+        showPill(true);
+      }
+    }
+    prevLengthRef.current = itemCount;
+    prevScrollHeightRef.current = el?.scrollHeight ?? 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [itemCount, resetKey]);
+
+  return { scrollToBottom };
+}
+
 export default function ChatApp() {
   return (
     <Suspense fallback={<main className="pt-[62px]" />}>
@@ -247,6 +330,26 @@ function ChatAppInner() {
   const activeDmThreadId = pane.type === "dm" ? pane.id : null;
   const activeThread = dmThreads.find((t) => t.id === activeDmThreadId) ?? null;
   const travelerCount = useTravelerCount(activeSailing?.id ?? null);
+
+  const groupContainerRef = useRef<HTMLDivElement>(null);
+  const dmContainerRef = useRef<HTMLDivElement>(null);
+  const groupPillRef = useRef<HTMLButtonElement>(null);
+  const dmPillRef = useRef<HTMLButtonElement>(null);
+  // The pane's own container div unmounts/remounts each time you switch
+  // away and back (conditional {pane.type === "group" ? ... : null}
+  // rendering), so a fresh (scrollTop-0) node needs a fresh jump-to-bottom
+  // even though the sailing itself hasn't changed — folding pane.type into
+  // the resetKey makes every "switched to this pane" transition register as
+  // a reset, not just a genuine sailing change. The DM pane doesn't need
+  // the same treatment: activeDmThreadId is already null whenever the DM
+  // pane isn't showing, so switching to it already changes the resetKey.
+  const groupScroll = useAutoScroll(
+    groupContainerRef,
+    groupPillRef,
+    groupMessages.length,
+    pane.type === "group" ? (activeSailing?.id ?? null) : null
+  );
+  const dmScroll = useAutoScroll(dmContainerRef, dmPillRef, dmMessages.length, activeDmThreadId);
 
   const lastGroupActivity = useMemo(() => {
     const incoming = realGroupMsgs.filter((m) => !m.mine && m.atMs);
@@ -733,13 +836,24 @@ function ChatAppInner() {
             </Link>
           </div>
 
-          <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
-            {groupMessages.map((m) => (
-              <div key={m.id} className="flex flex-col gap-3.5">
-                {m.day ? <DayDivider label={m.day} /> : null}
-                <MessageBubble msg={m} deletable={realIds.has(m.id)} onDelete={deleteGroupMessage} />
-              </div>
-            ))}
+          <div className="relative flex-1 overflow-hidden">
+            <div ref={groupContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
+              {groupMessages.map((m) => (
+                <div key={m.id} className="flex flex-col gap-3.5">
+                  {m.day ? <DayDivider label={m.day} /> : null}
+                  <MessageBubble msg={m} deletable={realIds.has(m.id)} onDelete={deleteGroupMessage} />
+                </div>
+              ))}
+            </div>
+            <button
+              ref={groupPillRef}
+              type="button"
+              onClick={() => groupScroll.scrollToBottom("smooth")}
+              style={{ display: "none" }}
+              className="absolute bottom-3 left-1/2 items-center gap-1.5 rounded-full bg-teal px-4 py-2 font-sans text-xs font-semibold text-white shadow-[0_4px_14px_rgba(14,140,153,.35)] transition-transform -translate-x-1/2 hover:scale-105"
+            >
+              ↓ New message
+            </button>
           </div>
 
           <div className="shrink-0 border-t border-border bg-white px-5.5 py-3.5">
@@ -803,11 +917,22 @@ function ChatAppInner() {
             </button>
           </div>
 
-          <div className="flex flex-1 flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
-            <DayDivider label="Conversation history" />
-            {dmMessages.map((m) => (
-              <MessageBubble key={m.id} msg={m} deletable={m.mine} onDelete={deleteDmMessage} />
-            ))}
+          <div className="relative flex-1 overflow-hidden">
+            <div ref={dmContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
+              <DayDivider label="Conversation history" />
+              {dmMessages.map((m) => (
+                <MessageBubble key={m.id} msg={m} deletable={m.mine} onDelete={deleteDmMessage} />
+              ))}
+            </div>
+            <button
+              ref={dmPillRef}
+              type="button"
+              onClick={() => dmScroll.scrollToBottom("smooth")}
+              style={{ display: "none" }}
+              className="absolute bottom-3 left-1/2 items-center gap-1.5 rounded-full bg-teal px-4 py-2 font-sans text-xs font-semibold text-white shadow-[0_4px_14px_rgba(14,140,153,.35)] transition-transform -translate-x-1/2 hover:scale-105"
+            >
+              ↓ New message
+            </button>
           </div>
 
           <div className="shrink-0 border-t border-border bg-white px-5.5 py-3.5">
