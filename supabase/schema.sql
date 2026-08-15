@@ -2,6 +2,11 @@
 -- Run this once in the Supabase SQL Editor (Project -> SQL Editor -> New query).
 
 -- Profile data that stays the same across all of a user's sailings.
+-- name_mode/nickname/last_initial back the display-name feature: every
+-- passenger defaults to 'anon' (a generated handle, e.g. "Coral Family")
+-- so the fix works with zero user action, or can opt into a nickname or
+-- "first name + last initial" instead. `name` doubles as the source first
+-- name for the real-name option.
 create table if not exists profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text not null,
@@ -9,6 +14,9 @@ create table if not exists profiles (
   avatar text not null default '😊',
   notify_digest boolean not null default true,
   notify_dm_alerts boolean not null default true,
+  name_mode text not null default 'anon' check (name_mode in ('anon', 'nick', 'real')),
+  nickname text not null default '',
+  last_initial text not null default '',
   created_at timestamptz not null default now()
 );
 
@@ -17,6 +25,14 @@ alter table profiles enable row level security;
 create policy "Users can view their own profile"
   on profiles for select
   using (auth.uid() = id);
+
+-- Passenger cards and chat need to show fellow travelers' chosen display
+-- name (or know to fall back to a generated handle), which lives on this
+-- account-level table rather than the per-sailing profile — same
+-- public-browsable stance as "Anyone can browse sailing passengers" below.
+create policy "Anyone can view display-name fields"
+  on profiles for select
+  using (true);
 
 create policy "Users can insert their own profile"
   on profiles for insert

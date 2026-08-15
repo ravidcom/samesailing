@@ -100,6 +100,7 @@ export default function PassengerBoard({
               const smartCue = !isMe && myGoals.length ? overlapCue(p.cue, myGoals, p.goals) : p.cue;
               const flag = p.country ? flagUrl(p.country) : null;
               const subParts = [
+                p.who,
                 p.country ? p.country : "",
                 p.langs.length ? `speaks ${p.langs.join(", ")}` : "",
               ].filter(Boolean);
@@ -117,11 +118,16 @@ export default function PassengerBoard({
                       {p.av}
                     </div>
                     <div>
-                      <div className="text-sm font-bold text-charcoal">
-                        {p.who}
+                      <div className="flex items-center gap-1.5 text-sm font-bold text-charcoal">
+                        {p.name}
                         {isMe ? " (you)" : ""}
+                        {p.anon ? (
+                          <span className="rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9px] font-bold tracking-[.06em] text-muted-2 uppercase">
+                            Anon
+                          </span>
+                        ) : null}
                         {p.lgbtq ? (
-                          <span className="ml-1" title="LGBTQ+ community">
+                          <span title="LGBTQ+ community">
                             <PrideStripe />
                           </span>
                         ) : null}

@@ -7,7 +7,7 @@ import { useAuth, type OnboardingProfile } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useTravelerCount } from "@/lib/useTravelerCount";
-import { profileLabel } from "@/lib/partyLabels";
+import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
 import { GROUP_SEED_MESSAGES, formatTimeLabel, type ChatMessage } from "@/lib/chatData";
 
@@ -101,8 +101,9 @@ async function fetchDmThreads(
   const otherIds = threads.map((t) => (t.user_a === myId ? t.user_b : t.user_a));
   const threadIds = threads.map((t) => t.id);
 
-  const [{ data: profiles }, { data: lastMsgs }] = await Promise.all([
+  const [{ data: profiles }, { data: nameRows }, { data: lastMsgs }] = await Promise.all([
     supabase.from("joined_sailings").select("user_id,profile").eq("sailing_id", sailingId).in("user_id", otherIds),
+    supabase.from("profiles").select("id,name,name_mode,nickname,last_initial").in("id", otherIds),
     supabase
       .from("dm_messages")
       .select("thread_id,sender_id,body,deleted,created_at")
@@ -112,6 +113,12 @@ async function fetchDmThreads(
 
   const profileByUser = new Map<string, OnboardingProfile | null>(
     (profiles ?? []).map((p) => [p.user_id, p.profile as OnboardingProfile | null])
+  );
+  const nameFieldsByUser = new Map(
+    (nameRows ?? []).map((r) => [
+      r.id,
+      { nameMode: r.name_mode, nickname: r.nickname, name: r.name, lastInitial: r.last_initial } as NameFields,
+    ])
   );
   const lastByThread = new Map<string, { sender_id: string; body: string; deleted: boolean; created_at: string }>();
   for (const m of lastMsgs ?? []) {
@@ -126,7 +133,7 @@ async function fetchDmThreads(
       return {
         id: t.id,
         otherUserId: otherId,
-        label: profileLabel(profile),
+        label: resolveDisplayName(otherId, profile?.partyType ?? "solo", nameFieldsByUser.get(otherId)).name,
         avatar: profile?.avatar ?? "🙂",
         preview: last ? (last.deleted ? "Message removed" : last.body) : "Say hello!",
         timeLabel: last ? formatTimeLabel(new Date(last.created_at)) : "",
@@ -304,7 +311,7 @@ export default function ChatApp() {
 }
 
 function ChatAppInner() {
-  const { loading, loggedIn, mySailings, userId, markChatSeen } = useAuth();
+  const { loading, loggedIn, mySailings, userId, markChatSeen, myDisplayName } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -330,6 +337,7 @@ function ChatAppInner() {
   const activeDmThreadId = pane.type === "dm" ? pane.id : null;
   const activeThread = dmThreads.find((t) => t.id === activeDmThreadId) ?? null;
   const travelerCount = useTravelerCount(activeSailing?.id ?? null);
+  const groupSenderName = myDisplayName(activeSailing?.profile?.partyType ?? null).name;
 
   const groupContainerRef = useRef<HTMLDivElement>(null);
   const dmContainerRef = useRef<HTMLDivElement>(null);
@@ -605,7 +613,7 @@ function ChatAppInner() {
     const text = groupDraft.trim();
     if (!text || !activeSailing || !userId) return;
     setGroupDraft("");
-    const senderLabel = profileLabel(activeSailing.profile);
+    const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
     await supabase.from("group_messages").insert({
       sailing_id: activeSailing.id,
       user_id: userId,
@@ -627,7 +635,7 @@ function ChatAppInner() {
     await supabase.from("dm_messages").insert({
       thread_id: activeDmThreadId,
       sender_id: userId,
-      sender_label: profileLabel(activeSailing.profile),
+      sender_label: myDisplayName(activeSailing.profile?.partyType ?? null).name,
       body: text,
     });
     fetchDmThreads(supabase, activeSailing.id, userId).then(setDmThreads);
@@ -880,7 +888,7 @@ function ChatAppInner() {
               </button>
             </div>
             <div className="mt-1.5 text-center text-[11px] text-muted-2">
-              Your partial profile is shown as your name
+              Sending as <strong className="font-semibold text-muted">{groupSenderName}</strong>
             </div>
           </div>
         </div>
