@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
 import type { StepProps } from "./types";
+import NameModePicker from "@/components/NameModePicker";
 import { fieldLabel, primaryButton, backLink, errorText } from "@/lib/formStyles";
 
-type Props = StepProps & { onFinish: () => void; onBack: () => void; submitting?: boolean };
+type Props = StepProps & { onFinish: () => void; onBack: () => void; submitting?: boolean; loggedIn: boolean };
 
 function OptRow({
   checked,
@@ -27,7 +28,7 @@ function OptRow({
   );
 }
 
-export default function StepConsent({ data, update, error, onFinish, onBack, submitting }: Props) {
+export default function StepConsent({ data, update, error, onFinish, onBack, submitting, loggedIn }: Props) {
   return (
     <div>
       <div className="rounded-[11px] border-[1.5px] border-l-[3px] border-border border-l-teal bg-input px-3.5 py-3 text-xs leading-relaxed text-muted">
@@ -35,6 +36,25 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
         happens through SameSailing.com&apos;s chat - no contact details are ever
         exchanged.
       </div>
+
+      {!loggedIn ? (
+        <>
+          <label className={fieldLabel + " mb-2 mt-[18px]"}>How you appear to other passengers</label>
+          <p className="mb-2.5 text-xs leading-relaxed text-muted">
+            Only fellow travelers on your sailings can see this — never your real name unless you choose to share it.
+          </p>
+          <NameModePicker
+            mode={data.nameMode}
+            onModeChange={(m) => update({ nameMode: m })}
+            nickname={data.nickname}
+            onNicknameChange={(v) => update({ nickname: v })}
+            lastInitial={data.lastInitial}
+            onLastInitialChange={(v) => update({ lastInitial: v })}
+            firstName={data.name}
+            anonExample={<>e.g. “Coral Family”</>}
+          />
+        </>
+      ) : null}
 
       <label className={fieldLabel + " mb-2 mt-[18px]"}>Email notifications</label>
       <OptRow checked={data.notifyActivity} onToggle={() => update({ notifyActivity: !data.notifyActivity })}>

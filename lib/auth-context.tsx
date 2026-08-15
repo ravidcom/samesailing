@@ -46,6 +46,9 @@ type SignUpInput = {
   avatar: string;
   country: string;
   sailing: JoinedSailing | null;
+  nameMode?: NameMode;
+  nickname?: string;
+  lastInitial?: string;
 };
 
 type NotificationSettings = { notifyDigest: boolean; notifyDmAlerts: boolean };
@@ -241,7 +244,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }
 
-  async function completeSignUp({ name, email, password, avatar, country, sailing }: SignUpInput) {
+  async function completeSignUp({
+    name,
+    email,
+    password,
+    avatar,
+    country,
+    sailing,
+    nameMode,
+    nickname,
+    lastInitial,
+  }: SignUpInput) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
     if (!data.user || !data.session) {
@@ -252,9 +265,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const userId = data.user.id;
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .insert({ id: userId, name, country, avatar });
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: userId,
+      name,
+      country,
+      avatar,
+      name_mode: nameMode ?? "anon",
+      nickname: nickname ?? "",
+      last_initial: lastInitial ?? "",
+    });
     if (profileError) return { error: profileError.message };
 
     if (sailing) {
