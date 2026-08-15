@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 
 function ShipIcon() {
@@ -42,10 +42,8 @@ function ProfileIcon() {
 }
 
 export default function MobileTabBar() {
-  const { loggedIn, mySailings, hasUnreadMessages } = useAuth();
+  const { loggedIn, mySailings, hasUnreadMessages, profileModalOpen } = useAuth();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const editingProfile = searchParams.get("edit") === "1";
 
   if (!loggedIn) return null;
 
@@ -59,13 +57,16 @@ export default function MobileTabBar() {
   // Profile has no separate route — it lives at the top of the dashboard.
   // Rather than linking to the same URL as Sailings (which made both tabs
   // indistinguishable and highlighted at once), Profile links to a
-  // ?edit=1 variant that auto-opens the account-edit modal, giving it a
-  // visibly distinct destination and its own active state.
+  // ?edit=1 variant that auto-opens the account-edit modal (tracked as
+  // shared AuthContext state — reading useSearchParams() directly here
+  // instead would force this component's Suspense boundary to diverge
+  // between the statically-prerendered shell and a real request's query
+  // string, which is what caused a hydration mismatch on every page load).
   const tabs = [
-    { key: "sailings", label: "Sailings", href: "/dashboard", icon: <ShipIcon />, active: pathname === "/dashboard" && !editingProfile, badge: false },
+    { key: "sailings", label: "Sailings", href: "/dashboard", icon: <ShipIcon />, active: pathname === "/dashboard" && !profileModalOpen, badge: false },
     { key: "passengers", label: "Passengers", href: passengersHref, icon: <PeopleIcon />, active: pathname.endsWith("/board"), badge: false },
     { key: "chat", label: "Chat", href: "/chat", icon: <ChatIcon />, active: pathname === "/chat", badge: hasUnreadMessages },
-    { key: "profile", label: "Profile", href: "/dashboard?edit=1", icon: <ProfileIcon />, active: pathname === "/dashboard" && editingProfile, badge: false },
+    { key: "profile", label: "Profile", href: "/dashboard?edit=1", icon: <ProfileIcon />, active: pathname === "/dashboard" && profileModalOpen, badge: false },
   ];
 
   return (

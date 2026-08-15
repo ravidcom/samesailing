@@ -263,8 +263,16 @@ function ChatAppInner() {
     });
   }
 
-  // Clears the nav/tab-bar "Chat" badge as soon as the user opens Chat at
-  // all. This has to be a real effect, not a render-time sync — markChatSeen
+  // Clears the nav/tab-bar "Chat" badge whenever the user is on Chat and
+  // there's fresh data — not just once on mount. AuthProvider's realtime
+  // notifications subscription sets hasUnreadMessages back to true on
+  // *any* new notification, even one for a conversation the user is
+  // actively looking at right now, so it needs to be re-cleared every time
+  // dmThreads/groupMessages actually change (i.e. every time new data has
+  // been seen), or a message arriving while already on this page would
+  // leave the badge stuck on with nothing left to clear it.
+  //
+  // This has to be a real effect, not a render-time sync — markChatSeen
   // updates state that lives in AuthProvider, a different component, and
   // updating another component's state synchronously during this
   // component's render throws ("Cannot update a component while rendering a
@@ -273,7 +281,7 @@ function ChatAppInner() {
   useEffect(() => {
     if (userId) markChatSeen();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, dmThreads, groupMessages]);
 
   // The following are render-time state syncs, not effects — each guarded
   // by a "have I already synced this exact value" state so it only fires
@@ -362,15 +370,35 @@ function ChatAppInner() {
     };
   }, [activeSailing, supabase, userId]);
 
-  // Sidebar DM thread list for the active sailing.
+  // Sidebar DM thread list for the active sailing — refetched on any DM
+  // insert/update the user is a participant of (not just the currently-open
+  // thread), so a message landing in a thread you're not looking at still
+  // updates its preview/unread state without needing to leave and re-enter
+  // Chat. Not filtered to a specific thread_id since we don't know the
+  // user's thread ids ahead of time; RLS already limits what postgres_changes
+  // delivers to threads this user is actually part of.
   useEffect(() => {
     if (!activeSailing || !userId) return;
+    const sailingId = activeSailing.id;
+    const myId = userId;
     let cancelled = false;
-    fetchDmThreads(supabase, activeSailing.id, userId).then((list) => {
-      if (!cancelled) setDmThreads(list);
-    });
+
+    function refresh() {
+      fetchDmThreads(supabase, sailingId, myId).then((list) => {
+        if (!cancelled) setDmThreads(list);
+      });
+    }
+    refresh();
+
+    const channel = supabase
+      .channel(`dm-threads-sidebar:${sailingId}:${myId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "dm_messages" }, refresh)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "dm_messages" }, refresh)
+      .subscribe();
+
     return () => {
       cancelled = true;
+      supabase.removeChannel(channel);
     };
   }, [activeSailing, userId, supabase]);
 

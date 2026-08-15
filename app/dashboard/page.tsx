@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import NavBar from "@/components/NavBar";
@@ -11,21 +11,22 @@ import NotificationLog from "@/components/dashboard/NotificationLog";
 import { useAuth } from "@/lib/auth-context";
 
 function DashboardContent() {
-  const { loading, loggedIn, user, country, mySailings } = useAuth();
+  const { loading, loggedIn, user, country, mySailings, profileModalOpen, showProfileModal } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editParam = searchParams.get("edit");
-  const [editingProfile, setEditingProfile] = useState(editParam === "1");
 
-  // Mirror the modal to the ?edit=1 param whenever it changes (e.g. tapping
-  // the mobile Profile tab to open it, or Sailings to navigate away and
-  // close it) — render-time state sync, not an effect, since it only needs
-  // to react when editParam itself changes.
-  const [syncedEditParam, setSyncedEditParam] = useState(editParam);
-  if (editParam !== syncedEditParam) {
-    setSyncedEditParam(editParam);
-    setEditingProfile(editParam === "1");
-  }
+  // Mirrors the modal (shared AuthContext state, so the mobile tab bar's
+  // Profile tab can reflect it too) to the ?edit=1 param whenever it
+  // changes. This has to be a real effect, not a render-time sync —
+  // showProfileModal updates state that lives in AuthProvider, a different
+  // component, and updating another component's state synchronously during
+  // this component's render throws ("Cannot update a component while
+  // rendering a different component").
+  useEffect(() => {
+    showProfileModal(editParam === "1");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editParam]);
 
   if (loading) {
     return (
@@ -80,7 +81,7 @@ function DashboardContent() {
           </div>
           <button
             type="button"
-            onClick={() => setEditingProfile(true)}
+            onClick={() => showProfileModal(true)}
             className="rounded-xl border-[1.5px] border-border px-4 py-2 font-sans text-sm font-medium text-muted transition-colors hover:border-teal hover:text-teal"
           >
             ✏️ Edit profile
@@ -119,9 +120,9 @@ function DashboardContent() {
       </main>
 
       <EditProfileModal
-        open={editingProfile}
+        open={profileModalOpen}
         onClose={() => {
-          setEditingProfile(false);
+          showProfileModal(false);
           if (editParam === "1") router.replace("/dashboard");
         }}
       />
