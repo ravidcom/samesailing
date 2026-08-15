@@ -39,6 +39,8 @@ type DmThreadSummary = {
   preview: string;
   timeLabel: string;
   sortKey: number;
+  lastMessageAtMs: number;
+  lastMessageMine: boolean;
 };
 
 function rowToGroupMessage(row: GroupMessageRow, myUserId: string | null): ChatMessage {
@@ -49,6 +51,7 @@ function rowToGroupMessage(row: GroupMessageRow, myUserId: string | null): ChatM
     body: row.body,
     ts: formatTimeLabel(new Date(row.created_at)),
     deleted: row.deleted,
+    atMs: new Date(row.created_at).getTime(),
   };
 }
 
@@ -60,7 +63,27 @@ function rowToDmMessage(row: DmMessageRow, myUserId: string | null): ChatMessage
     body: row.body,
     ts: formatTimeLabel(new Date(row.created_at)),
     deleted: row.deleted,
+    atMs: new Date(row.created_at).getTime(),
   };
+}
+
+/** Per-conversation "last read" timestamps, keyed by "group:<sailingId>" / "dm:<threadId>". */
+function readMapKey(userId: string) {
+  return `samesailing:chatRead:${userId}`;
+}
+
+function loadReadMap(userId: string): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(readMapKey(userId));
+    return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveReadMap(userId: string, map: Record<string, number>) {
+  localStorage.setItem(readMapKey(userId), JSON.stringify(map));
 }
 
 async function fetchDmThreads(
@@ -82,7 +105,7 @@ async function fetchDmThreads(
     supabase.from("joined_sailings").select("user_id,profile").eq("sailing_id", sailingId).in("user_id", otherIds),
     supabase
       .from("dm_messages")
-      .select("thread_id,body,deleted,created_at")
+      .select("thread_id,sender_id,body,deleted,created_at")
       .in("thread_id", threadIds)
       .order("created_at", { ascending: false }),
   ]);
@@ -90,7 +113,7 @@ async function fetchDmThreads(
   const profileByUser = new Map<string, OnboardingProfile | null>(
     (profiles ?? []).map((p) => [p.user_id, p.profile as OnboardingProfile | null])
   );
-  const lastByThread = new Map<string, { body: string; deleted: boolean; created_at: string }>();
+  const lastByThread = new Map<string, { sender_id: string; body: string; deleted: boolean; created_at: string }>();
   for (const m of lastMsgs ?? []) {
     if (!lastByThread.has(m.thread_id)) lastByThread.set(m.thread_id, m);
   }
@@ -108,6 +131,8 @@ async function fetchDmThreads(
         preview: last ? (last.deleted ? "Message removed" : last.body) : "Say hello!",
         timeLabel: last ? formatTimeLabel(new Date(last.created_at)) : "",
         sortKey: last ? new Date(last.created_at).getTime() : 0,
+        lastMessageAtMs: last ? new Date(last.created_at).getTime() : 0,
+        lastMessageMine: last ? last.sender_id === myId : false,
       };
     })
     .sort((a, b) => b.sortKey - a.sortKey);
@@ -196,7 +221,7 @@ export default function ChatApp() {
 }
 
 function ChatAppInner() {
-  const { loading, loggedIn, mySailings, userId } = useAuth();
+  const { loading, loggedIn, mySailings, userId, markChatSeen } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -211,6 +236,7 @@ function ChatAppInner() {
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
   const [dmDraft, setDmDraft] = useState("");
   const deepLinkHandled = useRef<string | null>(null);
+  const [readMap, setReadMap] = useState<Record<string, number>>({});
 
   const activeSailing = mySailings.find((s) => s.id === activeSailingId) ?? mySailings[0] ?? null;
   const groupMessages = useMemo(
@@ -221,6 +247,65 @@ function ChatAppInner() {
   const activeDmThreadId = pane.type === "dm" ? pane.id : null;
   const activeThread = dmThreads.find((t) => t.id === activeDmThreadId) ?? null;
   const travelerCount = useTravelerCount(activeSailing?.id ?? null);
+
+  const lastGroupActivity = useMemo(() => {
+    const incoming = realGroupMsgs.filter((m) => !m.mine && m.atMs);
+    return incoming.length ? Math.max(...incoming.map((m) => m.atMs!)) : 0;
+  }, [realGroupMsgs]);
+  const groupUnread = !!activeSailing && lastGroupActivity > (readMap[`group:${activeSailing.id}`] ?? 0);
+
+  function markRead(key: string) {
+    if (!userId) return;
+    setReadMap((prev) => {
+      const next = { ...prev, [key]: Date.now() };
+      saveReadMap(userId, next);
+      return next;
+    });
+  }
+
+  // Clears the nav/tab-bar "Chat" badge as soon as the user opens Chat at
+  // all. This has to be a real effect, not a render-time sync — markChatSeen
+  // updates state that lives in AuthProvider, a different component, and
+  // updating another component's state synchronously during this
+  // component's render throws ("Cannot update a component while rendering a
+  // different component"). Render-time state syncing is only safe for a
+  // component's own local state (see the syncs below).
+  useEffect(() => {
+    if (userId) markChatSeen();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // The following are render-time state syncs, not effects — each guarded
+  // by a "have I already synced this exact value" state so it only fires
+  // when its trigger actually changes, same pattern as OnboardingWizard's
+  // step-init sync. Safe here because readMap is this component's own
+  // local state.
+
+  // Loads this device's per-conversation read timestamps.
+  const [readMapLoadedForUser, setReadMapLoadedForUser] = useState<string | null>(null);
+  if (userId && userId !== readMapLoadedForUser) {
+    setReadMapLoadedForUser(userId);
+    setReadMap(loadReadMap(userId));
+  }
+
+  // Whichever pane (group or a DM thread) is currently open is, by definition,
+  // being read — keep its read timestamp fresh as new messages arrive so it
+  // never shows as unread while the user is looking right at it.
+  const groupReadKey = pane.type === "group" && activeSailing ? `group:${activeSailing.id}` : null;
+  const groupReadSignature = groupReadKey ? `${groupReadKey}:${groupMessages.length}` : null;
+  const [syncedGroupReadSignature, setSyncedGroupReadSignature] = useState<string | null>(null);
+  if (groupReadKey && groupReadSignature !== syncedGroupReadSignature) {
+    setSyncedGroupReadSignature(groupReadSignature);
+    markRead(groupReadKey);
+  }
+
+  const dmReadKey = pane.type === "dm" ? `dm:${pane.id}` : null;
+  const dmReadSignature = dmReadKey ? `${dmReadKey}:${dmMessages.length}` : null;
+  const [syncedDmReadSignature, setSyncedDmReadSignature] = useState<string | null>(null);
+  if (dmReadKey && dmReadSignature !== syncedDmReadSignature) {
+    setSyncedDmReadSignature(dmReadSignature);
+    markRead(dmReadKey);
+  }
 
   // Group chat: load history + subscribe to realtime inserts/updates.
   useEffect(() => {
@@ -522,9 +607,15 @@ function ChatAppInner() {
           </div>
           <div
             onClick={openGroupPane}
-            className="mx-0.5 mb-1.5 cursor-pointer rounded-2xl p-3.5 text-white shadow-[0_10px_22px_rgba(14,140,153,.3)]"
+            className="relative mx-0.5 mb-1.5 cursor-pointer rounded-2xl p-3.5 text-white shadow-[0_10px_22px_rgba(14,140,153,.3)]"
             style={{ background: "linear-gradient(135deg,#0E8C99,#0a6f7a)" }}
           >
+            {groupUnread ? (
+              <span
+                className="absolute top-2.5 right-2.5 h-2.5 w-2.5 rounded-full bg-coral ring-2 ring-white/40"
+                aria-label="Unread group messages"
+              />
+            ) : null}
             <div className="flex items-center gap-2.5">
               <span className="text-xl">⛴️</span>
               <div className="min-w-0 flex-1">
@@ -546,26 +637,41 @@ function ChatAppInner() {
               Message a fellow traveler from the passenger board to start a conversation.
             </div>
           ) : null}
-          {dmThreads.map((t) => (
-            <div
-              key={t.id}
-              onClick={() => openDm(t.id)}
-              className={`mb-0.5 flex cursor-pointer items-center gap-2.5 rounded-[10px] p-2.5 transition-colors hover:bg-input ${
-                pane.type === "dm" && pane.id === t.id ? "border-l-2 border-teal bg-input" : ""
-              }`}
-            >
-              <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#f2f7f7] text-sm">
-                {t.avatar}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="mb-0.5 flex items-center justify-between gap-2">
-                  <span className="truncate text-[13px] font-semibold text-charcoal">{t.label}</span>
-                  <span className="shrink-0 text-[11px] text-muted-2">{t.timeLabel}</span>
+          {dmThreads.map((t) => {
+            const unread = !t.lastMessageMine && t.lastMessageAtMs > (readMap[`dm:${t.id}`] ?? 0);
+            return (
+              <div
+                key={t.id}
+                onClick={() => openDm(t.id)}
+                className={`mb-0.5 flex cursor-pointer items-center gap-2.5 rounded-[10px] p-2.5 transition-colors hover:bg-input ${
+                  pane.type === "dm" && pane.id === t.id ? "border-l-2 border-teal bg-input" : ""
+                }`}
+              >
+                <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#f2f7f7] text-sm">
+                  {t.avatar}
+                  {unread ? (
+                    <span
+                      className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-coral ring-2 ring-white"
+                      aria-label="Unread messages"
+                    />
+                  ) : null}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="mb-0.5 flex items-center justify-between gap-2">
+                    <span className={`truncate text-[13px] text-charcoal ${unread ? "font-bold" : "font-semibold"}`}>
+                      {t.label}
+                    </span>
+                    <span className={`shrink-0 text-[11px] ${unread ? "font-semibold text-teal" : "text-muted-2"}`}>
+                      {t.timeLabel}
+                    </span>
+                  </div>
+                  <div className={`truncate text-xs ${unread ? "font-semibold text-charcoal" : "text-[#5f8288]"}`}>
+                    {t.preview}
+                  </div>
                 </div>
-                <div className="truncate text-xs text-[#5f8288]">{t.preview}</div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

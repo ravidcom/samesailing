@@ -42,7 +42,7 @@ function ProfileIcon() {
 }
 
 export default function MobileTabBar() {
-  const { loggedIn, mySailings } = useAuth();
+  const { loggedIn, mySailings, hasUnreadMessages } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const editingProfile = searchParams.get("edit") === "1";
@@ -62,10 +62,10 @@ export default function MobileTabBar() {
   // ?edit=1 variant that auto-opens the account-edit modal, giving it a
   // visibly distinct destination and its own active state.
   const tabs = [
-    { key: "sailings", label: "Sailings", href: "/dashboard", icon: <ShipIcon />, active: pathname === "/dashboard" && !editingProfile },
-    { key: "passengers", label: "Passengers", href: passengersHref, icon: <PeopleIcon />, active: pathname.endsWith("/board") },
-    { key: "chat", label: "Chat", href: "/chat", icon: <ChatIcon />, active: pathname === "/chat" },
-    { key: "profile", label: "Profile", href: "/dashboard?edit=1", icon: <ProfileIcon />, active: pathname === "/dashboard" && editingProfile },
+    { key: "sailings", label: "Sailings", href: "/dashboard", icon: <ShipIcon />, active: pathname === "/dashboard" && !editingProfile, badge: false },
+    { key: "passengers", label: "Passengers", href: passengersHref, icon: <PeopleIcon />, active: pathname.endsWith("/board"), badge: false },
+    { key: "chat", label: "Chat", href: "/chat", icon: <ChatIcon />, active: pathname === "/chat", badge: hasUnreadMessages },
+    { key: "profile", label: "Profile", href: "/dashboard?edit=1", icon: <ProfileIcon />, active: pathname === "/dashboard" && editingProfile, badge: false },
   ];
 
   return (
@@ -79,7 +79,12 @@ export default function MobileTabBar() {
               t.active ? "font-bold text-teal" : "text-[#7a9599]"
             }`}
           >
-            {t.icon}
+            <span className="relative">
+              {t.icon}
+              {t.badge ? (
+                <span className="absolute -top-0.5 -right-1 h-2 w-2 rounded-full bg-coral" aria-label="Unread messages" />
+              ) : null}
+            </span>
             {t.label}
           </Link>
         ))}

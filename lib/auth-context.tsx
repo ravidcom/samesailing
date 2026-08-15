@@ -57,6 +57,8 @@ type AuthContextValue = {
   country: string;
   notifications: NotificationSettings;
   mySailings: JoinedSailing[];
+  hasUnreadMessages: boolean;
+  markChatSeen: () => void;
   refreshUserData: (userId: string) => Promise<void>;
   completeSignUp: (input: SignUpInput) => Promise<{ error?: string }>;
   logIn: (email: string, password: string) => Promise<{ error?: string }>;
@@ -88,6 +90,16 @@ type JoinedSailingRow = {
   profile: OnboardingProfile | null;
 };
 
+function chatSeenKey(userId: string) {
+  return `samesailing:chatSeenAt:${userId}`;
+}
+
+/** Epoch string old enough that "no stored value yet" reads as "everything is unread". */
+function getChatSeenAt(userId: string): string {
+  if (typeof window === "undefined") return new Date(0).toISOString();
+  return localStorage.getItem(chatSeenKey(userId)) ?? new Date(0).toISOString();
+}
+
 function rowToSailing(row: JoinedSailingRow): JoinedSailing {
   return {
     id: row.sailing_id,
@@ -106,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [mySailings, setMySailings] = useState<JoinedSailing[]>([]);
+  const [hasUnreadMessages, setHasUnreadMessages] = useState(false);
 
   async function loadUserData(userId: string) {
     const [{ data: profileRow }, { data: sailingRows }] = await Promise.all([
@@ -137,12 +150,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         setProfile(null);
         setMySailings([]);
+        setHasUnreadMessages(false);
       }
     });
 
     return () => listener.subscription.unsubscribe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Drives the "Chat" badge in the nav/tab bar: true whenever a notification
+  // (group or DM message) has landed since the user last visited /chat.
+  // "Seen" is tracked client-side (localStorage) rather than in the DB —
+  // there's no cross-device requirement here, and it keeps this independent
+  // of the notify_digest/notify_dm_alerts toggles (those gate the log entry
+  // itself, not the badge).
+  useEffect(() => {
+    const currentUserId = authUser?.id;
+    // Resetting to false on logout is handled by the onAuthStateChange
+    // listener above, alongside clearing profile/mySailings.
+    if (!currentUserId) return;
+    let cancelled = false;
+    const seenAt = getChatSeenAt(currentUserId);
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", currentUserId)
+      .gt("created_at", seenAt)
+      .then(({ count }) => {
+        if (!cancelled) setHasUnreadMessages((count ?? 0) > 0);
+      });
+
+    const channel = supabase
+      .channel(`unread-badge:${currentUserId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${currentUserId}` },
+        () => setHasUnreadMessages(true)
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.id, supabase]);
+
+  function markChatSeen() {
+    if (!authUser) return;
+    localStorage.setItem(chatSeenKey(authUser.id), new Date().toISOString());
+    setHasUnreadMessages(false);
+  }
 
   async function completeSignUp({ name, email, password, avatar, country, sailing }: SignUpInput) {
     const { data, error } = await supabase.auth.signUp({ email, password });
@@ -284,6 +341,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notifyDmAlerts: profile?.notify_dm_alerts ?? true,
     },
     mySailings,
+    hasUnreadMessages,
+    markChatSeen,
     refreshUserData: loadUserData,
     completeSignUp,
     logIn,

@@ -6,6 +6,8 @@ export type ChatMessage = {
   ts: string;
   day?: string;
   deleted?: boolean;
+  /** Epoch ms, used for unread comparisons. Absent on seed/demo messages. */
+  atMs?: number;
 };
 
 export const GROUP_SEED_MESSAGES: ChatMessage[] = [

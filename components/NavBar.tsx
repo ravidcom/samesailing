@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function NavBar() {
   const router = useRouter();
-  const { loading, loggedIn, user, mySailings, signOut } = useAuth();
+  const { loading, loggedIn, user, mySailings, hasUnreadMessages, signOut } = useAuth();
 
   return (
     <nav className="fixed inset-x-0 top-0 z-[200] flex h-[62px] items-center justify-between border-b border-border bg-nav-bg px-3.5 backdrop-blur-md md:px-10">
@@ -30,9 +30,12 @@ export default function NavBar() {
             {mySailings.length > 0 ? (
               <Link
                 href="/chat"
-                className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
+                className="relative hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
               >
                 Chat
+                {hasUnreadMessages ? (
+                  <span className="absolute top-1 right-0.5 h-1.5 w-1.5 rounded-full bg-coral" aria-label="Unread messages" />
+                ) : null}
               </Link>
             ) : null}
             <Link
