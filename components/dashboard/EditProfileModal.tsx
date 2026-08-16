@@ -89,7 +89,7 @@ export default function EditProfileModal({
       />
 
       <p className="mt-3 text-[11.5px] leading-relaxed text-muted-2">
-        Who&apos;s coming and what you&apos;re looking for are set per sailing — edit them
+        Who&apos;s coming and what you&apos;re looking for are set per sailing - edit them
         on each cruise card.
       </p>
       </div>
