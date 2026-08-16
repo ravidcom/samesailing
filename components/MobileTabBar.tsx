@@ -52,11 +52,14 @@ export default function MobileTabBar() {
   if (!loggedIn) return null;
 
   // The prototype this is ported from assumed one global "current" sailing;
-  // this app lets you join up to 5. With exactly one joined sailing,
-  // Passengers can go straight to its board — with zero or several, there's
-  // no single sailing to pick, so it goes to the dashboard where every
-  // sailing card has its own Passengers link.
-  const passengersHref = mySailings.length === 1 ? `/sailing/${mySailings[0].id}/board` : "/dashboard";
+  // this app lets you join up to 5. There's no single "right" sailing to
+  // pick when you've joined more than one, but landing on a board beats
+  // bouncing to the dashboard — that's the Sailings tab's own page, so
+  // doing that made Passengers look like a dead link that just redid what
+  // Sailings already does. Defaulting to the first joined sailing at least
+  // always shows *a* board; switching sailings from there is still one tap
+  // away via each dashboard card's own Passengers link.
+  const passengersHref = mySailings.length > 0 ? `/sailing/${mySailings[0].id}/board` : "/dashboard";
 
   // Profile has no separate route — it lives at the top of the dashboard.
   // Rather than linking to the same URL as Sailings (which made both tabs
