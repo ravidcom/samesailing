@@ -48,8 +48,8 @@ export default function NotificationSettings() {
               Account &amp; security
             </div>
             <div className="text-xs leading-relaxed text-muted">
-              Password resets and login alerts happen outside this app, via
-              Supabase Auth.
+              Change your password from My profile. Login alerts happen
+              outside this app, via Supabase Auth.
             </div>
           </div>
           <span className="whitespace-nowrap text-xs text-muted-2">Always on</span>
