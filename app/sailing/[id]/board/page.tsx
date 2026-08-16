@@ -26,7 +26,7 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
   // per-sailing profile, so they need a separate join against `profiles`.
   const { data: nameRows } = await supabase
     .from("profiles")
-    .select("id,name,name_mode,nickname,last_initial")
+    .select("id,name,name_mode,nickname")
     .in(
       "id",
       joined.map((r) => r.user_id)
@@ -36,7 +36,7 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
   const passengers = joined.map((r) => {
     const n = namesById.get(r.user_id);
     const nameFields = n
-      ? { nameMode: n.name_mode, nickname: n.nickname, name: n.name, lastInitial: n.last_initial }
+      ? { nameMode: n.name_mode, nickname: n.nickname, name: n.name }
       : null;
     return passengerFromProfile(r.user_id, r.profile, nameFields);
   });

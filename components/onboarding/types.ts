@@ -18,7 +18,6 @@ export type OnboardingFormData = {
   lgbtq: boolean;
   nameMode: NameMode;
   nickname: string;
-  lastInitial: string;
   notifyActivity: boolean;
   notifyRecs: boolean;
   agreedTerms: boolean;
@@ -39,7 +38,6 @@ export const emptyFormData: OnboardingFormData = {
   lgbtq: false,
   nameMode: "real",
   nickname: "",
-  lastInitial: "",
   notifyActivity: false,
   notifyRecs: false,
   agreedTerms: false,
