@@ -41,7 +41,7 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
         <>
           <label className={fieldLabel + " mb-2 mt-[18px]"}>How you appear to other passengers</label>
           <p className="mb-2.5 text-xs leading-relaxed text-muted">
-            Only fellow travelers on your sailings can see this — never your real name unless you choose to share it.
+            Only fellow travelers on your sailings can see this - never your real name unless you choose to share it.
           </p>
           <NameModePicker
             mode={data.nameMode}

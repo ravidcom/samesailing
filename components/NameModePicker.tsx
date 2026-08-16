@@ -6,19 +6,19 @@ import { textInput } from "@/lib/formStyles";
 
 const MODES: { id: NameMode; title: string; body: string }[] = [
   {
-    id: "anon",
-    title: "Stay anonymous",
-    body: "You get a unique handle so people can still tell you apart —",
+    id: "real",
+    title: "Use my real name",
+    body: "First name and last initial only -",
   },
   {
     id: "nick",
     title: "Use a nickname",
-    body: "Anything you like — a crew name, first names, an inside joke.",
+    body: "Anything you like - a crew name, first names, an inside joke.",
   },
   {
-    id: "real",
-    title: "Use my real name",
-    body: "First name and last initial only —",
+    id: "anon",
+    title: "Stay anonymous",
+    body: "You get a unique handle so people can still tell you apart -",
   },
 ];
 
@@ -43,7 +43,7 @@ export default function NameModePicker({
   firstName: string;
   anonExample: ReactNode;
 }) {
-  const realNamePreview = `${firstName.trim() || "Dani"}${lastInitial.trim() ? ` ${lastInitial.trim().charAt(0).toUpperCase()}.` : ""}`;
+  const realNamePreview = `${firstName.trim() || "Alex"}${lastInitial.trim() ? ` ${lastInitial.trim().charAt(0).toUpperCase()}.` : ""}`;
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -68,9 +68,9 @@ export default function NameModePicker({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-bold text-charcoal">{m.title}</span>
-                  {m.id === "anon" ? (
+                  {m.id === "real" ? (
                     <span className="rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[10px] font-bold tracking-[.06em] text-muted-2 uppercase">
-                      Default
+                      Recommended
                     </span>
                   ) : null}
                 </div>
@@ -85,7 +85,7 @@ export default function NameModePicker({
                     <input
                       className={textInput + " mt-2.5"}
                       maxLength={20}
-                      placeholder="e.g. Dani & Maya"
+                      placeholder="e.g. Mike & Sarah"
                       value={nickname}
                       onChange={(e) => onNicknameChange(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
@@ -106,7 +106,7 @@ export default function NameModePicker({
                         onClick={(e) => e.stopPropagation()}
                       />
                       <span className="text-[11.5px] leading-relaxed text-muted-2">
-                        Last initial — your first name comes from the field above.
+                        Last initial - your first name comes from the field above.
                       </span>
                     </div>
                     <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] bg-[#fdeae6] px-2.5 py-2 text-[11.5px] leading-relaxed text-[#c9503b]">
