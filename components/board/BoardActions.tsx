@@ -18,25 +18,25 @@ export default function BoardActions({ sailingId }: { sailingId: string }) {
   }
 
   return (
-    <div className="mt-5 flex flex-wrap items-center gap-2.5 border-t border-[#eef4f5] pt-5">
+    <div className="flex flex-wrap items-center justify-end gap-2">
       {joined ? (
-        <span className="flex items-center gap-1.5 rounded-xl bg-teal px-6 py-3 font-sans text-sm font-semibold text-white">
-          ✓ You&apos;re aboard
+        <span className="flex items-center gap-1 whitespace-nowrap rounded-lg bg-white/20 px-3 py-1.5 font-sans text-xs font-semibold text-white">
+          ✓ Aboard
         </span>
       ) : (
         <Link
           href={`/join/${sailingId}`}
-          className="rounded-xl bg-teal px-6 py-3 font-sans text-sm font-semibold text-white transition-colors hover:bg-teal-dark"
+          className="whitespace-nowrap rounded-lg bg-white px-3 py-1.5 font-sans text-xs font-semibold text-teal transition-colors hover:bg-white/90"
         >
-          ⚓ Join this sailing
+          ⚓ Join
         </Link>
       )}
       <button
         type="button"
         onClick={shareSailing}
-        className="rounded-xl border-[1.5px] border-border bg-white px-6 py-3 font-sans text-sm font-medium text-muted transition-colors hover:border-teal hover:text-teal"
+        className="whitespace-nowrap rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 font-sans text-xs font-medium text-white transition-colors hover:bg-white/20"
       >
-        {copied ? "✓ Link copied" : "🔗 Share sailing"}
+        {copied ? "✓ Copied" : "🔗 Share"}
       </button>
     </div>
   );
