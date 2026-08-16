@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Modal from "@/components/ui/Modal";
+import CountrySelect from "@/components/ui/CountrySelect";
 import NameModePicker from "@/components/NameModePicker";
 import { useAuth } from "@/lib/auth-context";
 import type { NameMode } from "@/lib/displayName";
@@ -15,7 +16,6 @@ export default function EditProfileModal({
   onClose: () => void;
 }) {
   const { user, country, nameMode, nickname, updateAccount } = useAuth();
-  const [name, setName] = useState(user?.name ?? "");
   const [countryDraft, setCountryDraft] = useState(country);
   // "anon" is a legacy value from before the picker dropped that option —
   // treat it the same as never having chosen, so the picker always shows
@@ -25,7 +25,6 @@ export default function EditProfileModal({
 
   function save() {
     updateAccount({
-      name: name.trim() || user?.name,
       country: countryDraft.trim(),
       nameMode: modeDraft,
       nickname: nickDraft.trim(),
@@ -34,7 +33,6 @@ export default function EditProfileModal({
   }
 
   function reset() {
-    setName(user?.name ?? "");
     setCountryDraft(country);
     setModeDraft(nameMode === "anon" ? "real" : nameMode);
     setNickDraft(nickname);
@@ -54,18 +52,13 @@ export default function EditProfileModal({
 
       <div className="max-h-[65vh] overflow-y-auto pr-1">
       <label className={fieldLabel}>First name</label>
-      <input className={textInput} value={name} onChange={(e) => setName(e.target.value)} />
+      <input className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"} value={user?.name ?? ""} disabled />
 
       <label className={fieldLabel + " mt-3"}>Email</label>
       <input className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"} value={user?.email ?? ""} disabled />
 
       <label className={fieldLabel + " mt-3"}>Country</label>
-      <input
-        className={textInput}
-        placeholder="e.g. United States"
-        value={countryDraft}
-        onChange={(e) => setCountryDraft(e.target.value)}
-      />
+      <CountrySelect value={countryDraft} onChange={setCountryDraft} />
 
       <label className={fieldLabel + " mt-4"}>How you appear to other passengers</label>
       <p className="mb-2.5 text-[11.5px] leading-relaxed text-muted-2">
@@ -77,7 +70,7 @@ export default function EditProfileModal({
         onModeChange={setModeDraft}
         nickname={nickDraft}
         onNicknameChange={setNickDraft}
-        firstName={name}
+        firstName={user?.name ?? ""}
       />
 
       <p className="mt-3 text-[11.5px] leading-relaxed text-muted-2">
