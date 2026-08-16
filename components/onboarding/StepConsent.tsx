@@ -48,8 +48,6 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
             onModeChange={(m) => update({ nameMode: m })}
             nickname={data.nickname}
             onNicknameChange={(v) => update({ nickname: v })}
-            lastInitial={data.lastInitial}
-            onLastInitialChange={(v) => update({ lastInitial: v })}
             firstName={data.name}
             anonExample={<>e.g. “Coral Family”</>}
           />

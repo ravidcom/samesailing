@@ -48,7 +48,6 @@ type SignUpInput = {
   sailing: JoinedSailing | null;
   nameMode?: NameMode;
   nickname?: string;
-  lastInitial?: string;
 };
 
 type NotificationSettings = { notifyDigest: boolean; notifyDmAlerts: boolean };
@@ -68,7 +67,6 @@ type AuthContextValue = {
   showProfileModal: (open: boolean) => void;
   nameMode: NameMode;
   nickname: string;
-  lastInitial: string;
   /** Resolves what I'm labelled as for a given (per-sailing) party type — the handle noun differs by party type, so this needs to know which sailing's context it's being shown in. */
   myDisplayName: (partyType: PartyType | null) => { name: string; anon: boolean };
   refreshUserData: (userId: string) => Promise<void>;
@@ -82,7 +80,6 @@ type AuthContextValue = {
     country?: string;
     nameMode?: NameMode;
     nickname?: string;
-    lastInitial?: string;
   }) => Promise<void>;
   updateNotificationSettings: (patch: Partial<NotificationSettings>) => Promise<void>;
   signOut: () => Promise<void>;
@@ -99,10 +96,9 @@ type ProfileRow = {
   notify_dm_alerts: boolean;
   name_mode: NameMode;
   nickname: string;
-  last_initial: string;
 };
 
-const PROFILE_COLUMNS = "id,name,country,avatar,notify_digest,notify_dm_alerts,name_mode,nickname,last_initial";
+const PROFILE_COLUMNS = "id,name,country,avatar,notify_digest,notify_dm_alerts,name_mode,nickname";
 type JoinedSailingRow = {
   sailing_id: string;
   line: string;
@@ -240,7 +236,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nameMode: profile?.name_mode ?? "anon",
       nickname: profile?.nickname ?? "",
       name: profile?.name ?? "",
-      lastInitial: profile?.last_initial ?? "",
     });
   }
 
@@ -253,7 +248,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     sailing,
     nameMode,
     nickname,
-    lastInitial,
   }: SignUpInput) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
@@ -272,7 +266,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       avatar,
       name_mode: nameMode ?? "anon",
       nickname: nickname ?? "",
-      last_initial: lastInitial ?? "",
     });
     if (profileError) return { error: profileError.message };
 
@@ -363,15 +356,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     country?: string;
     nameMode?: NameMode;
     nickname?: string;
-    lastInitial?: string;
   }) {
     if (!authUser) return;
-    const dbPatch: Partial<Pick<ProfileRow, "name" | "country" | "name_mode" | "nickname" | "last_initial">> = {};
+    const dbPatch: Partial<Pick<ProfileRow, "name" | "country" | "name_mode" | "nickname">> = {};
     if (patch.name !== undefined) dbPatch.name = patch.name;
     if (patch.country !== undefined) dbPatch.country = patch.country;
     if (patch.nameMode !== undefined) dbPatch.name_mode = patch.nameMode;
     if (patch.nickname !== undefined) dbPatch.nickname = patch.nickname;
-    if (patch.lastInitial !== undefined) dbPatch.last_initial = patch.lastInitial;
     const { data } = await supabase
       .from("profiles")
       .update(dbPatch)
@@ -419,7 +410,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     showProfileModal,
     nameMode: profile?.name_mode ?? "anon",
     nickname: profile?.nickname ?? "",
-    lastInitial: profile?.last_initial ?? "",
     myDisplayName,
     refreshUserData: loadUserData,
     completeSignUp,

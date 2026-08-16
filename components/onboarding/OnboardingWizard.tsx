@@ -187,7 +187,6 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
       sailing: joinedSailing,
       nameMode: data.nameMode,
       nickname: data.nickname.trim(),
-      lastInitial: data.lastInitial.trim(),
     });
     setSubmitting(false);
     if (result.error) {

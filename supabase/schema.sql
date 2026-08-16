@@ -2,11 +2,10 @@
 -- Run this once in the Supabase SQL Editor (Project -> SQL Editor -> New query).
 
 -- Profile data that stays the same across all of a user's sailings.
--- name_mode/nickname/last_initial back the display-name feature: every
--- passenger defaults to 'anon' (a generated handle, e.g. "Coral Family")
--- so the fix works with zero user action, or can opt into a nickname or
--- "first name + last initial" instead. `name` doubles as the source first
--- name for the real-name option.
+-- name_mode/nickname back the display-name feature: every passenger
+-- defaults to 'anon' (a generated handle, e.g. "Coral Family") so the
+-- feature works with zero user action, or can opt into a nickname or
+-- their real name (shown exactly as `name` below) instead.
 create table if not exists profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text not null,
@@ -16,7 +15,6 @@ create table if not exists profiles (
   notify_dm_alerts boolean not null default true,
   name_mode text not null default 'anon' check (name_mode in ('anon', 'nick', 'real')),
   nickname text not null default '',
-  last_initial text not null default '',
   created_at timestamptz not null default now()
 );
 

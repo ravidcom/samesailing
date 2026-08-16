@@ -14,12 +14,11 @@ export default function EditProfileModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { user, country, mySailings, nameMode, nickname, lastInitial, myDisplayName, updateAccount } = useAuth();
+  const { user, country, mySailings, nameMode, nickname, myDisplayName, updateAccount } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [countryDraft, setCountryDraft] = useState(country);
   const [modeDraft, setModeDraft] = useState<NameMode>(nameMode);
   const [nickDraft, setNickDraft] = useState(nickname);
-  const [lastInitialDraft, setLastInitialDraft] = useState(lastInitial);
 
   // Only used to give the handle preview a representative party type — the
   // handle itself is stable per sailing, this just shows a realistic example.
@@ -32,7 +31,6 @@ export default function EditProfileModal({
       country: countryDraft.trim(),
       nameMode: modeDraft,
       nickname: nickDraft.trim(),
-      lastInitial: lastInitialDraft.trim(),
     });
     onClose();
   }
@@ -42,7 +40,6 @@ export default function EditProfileModal({
     setCountryDraft(country);
     setModeDraft(nameMode);
     setNickDraft(nickname);
-    setLastInitialDraft(lastInitial);
   }
 
   function close() {
@@ -82,8 +79,6 @@ export default function EditProfileModal({
         onModeChange={setModeDraft}
         nickname={nickDraft}
         onNicknameChange={setNickDraft}
-        lastInitial={lastInitialDraft}
-        onLastInitialChange={setLastInitialDraft}
         firstName={name}
         anonExample={handlePreview}
       />

@@ -103,7 +103,7 @@ async function fetchDmThreads(
 
   const [{ data: profiles }, { data: nameRows }, { data: lastMsgs }] = await Promise.all([
     supabase.from("joined_sailings").select("user_id,profile").eq("sailing_id", sailingId).in("user_id", otherIds),
-    supabase.from("profiles").select("id,name,name_mode,nickname,last_initial").in("id", otherIds),
+    supabase.from("profiles").select("id,name,name_mode,nickname").in("id", otherIds),
     supabase
       .from("dm_messages")
       .select("thread_id,sender_id,body,deleted,created_at")
@@ -117,7 +117,7 @@ async function fetchDmThreads(
   const nameFieldsByUser = new Map(
     (nameRows ?? []).map((r) => [
       r.id,
-      { nameMode: r.name_mode, nickname: r.nickname, name: r.name, lastInitial: r.last_initial } as NameFields,
+      { nameMode: r.name_mode, nickname: r.nickname, name: r.name } as NameFields,
     ])
   );
   const lastByThread = new Map<string, { sender_id: string; body: string; deleted: boolean; created_at: string }>();

@@ -8,7 +8,7 @@ const MODES: { id: NameMode; title: string; body: string }[] = [
   {
     id: "real",
     title: "Use my real name",
-    body: "First name and last initial only -",
+    body: "Shown to others exactly as it appears above -",
   },
   {
     id: "nick",
@@ -29,8 +29,6 @@ export default function NameModePicker({
   onModeChange,
   nickname,
   onNicknameChange,
-  lastInitial,
-  onLastInitialChange,
   firstName,
   anonExample,
 }: {
@@ -38,12 +36,10 @@ export default function NameModePicker({
   onModeChange: (m: NameMode) => void;
   nickname: string;
   onNicknameChange: (v: string) => void;
-  lastInitial: string;
-  onLastInitialChange: (v: string) => void;
   firstName: string;
   anonExample: ReactNode;
 }) {
-  const realNamePreview = `${firstName.trim() || "Alex"}${lastInitial.trim() ? ` ${lastInitial.trim().charAt(0).toUpperCase()}.` : ""}`;
+  const realNamePreview = firstName.trim() || "Alex";
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -95,25 +91,10 @@ export default function NameModePicker({
                 ) : null}
 
                 {m.id === "real" && selected ? (
-                  <>
-                    <div className="mt-2.5 flex items-center gap-2">
-                      <input
-                        className={textInput + " w-16 text-center"}
-                        maxLength={1}
-                        placeholder="L"
-                        value={lastInitial}
-                        onChange={(e) => onLastInitialChange(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                      <span className="text-[11.5px] leading-relaxed text-muted-2">
-                        Last initial - your first name comes from the field above.
-                      </span>
-                    </div>
-                    <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] bg-[#fdeae6] px-2.5 py-2 text-[11.5px] leading-relaxed text-[#c9503b]">
-                      <span>⚠︎</span>
-                      <span>Everyone on your sailings will see it. You can switch back any time.</span>
-                    </div>
-                  </>
+                  <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] bg-[#fdeae6] px-2.5 py-2 text-[11.5px] leading-relaxed text-[#c9503b]">
+                    <span>⚠︎</span>
+                    <span>Everyone on your sailings will see it. You can switch back any time.</span>
+                  </div>
                 ) : null}
               </div>
             </div>
