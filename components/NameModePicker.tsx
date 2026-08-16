@@ -1,6 +1,5 @@
 "use client";
 
-import type { ReactNode } from "react";
 import type { NameMode } from "@/lib/displayName";
 import { textInput } from "@/lib/formStyles";
 
@@ -15,29 +14,20 @@ const MODES: { id: NameMode; title: string; body: string }[] = [
     title: "Use a nickname",
     body: "Anything you like - a crew name, first names, an inside joke.",
   },
-  {
-    id: "anon",
-    title: "Stay anonymous",
-    body: "You get a unique handle so people can still tell you apart -",
-  },
 ];
 
-/** Shared with EditProfileModal (live "your handle is X" preview) and the
- * signup flow (no account/userId yet, so just an illustrative example). */
 export default function NameModePicker({
   mode,
   onModeChange,
   nickname,
   onNicknameChange,
   firstName,
-  anonExample,
 }: {
   mode: NameMode;
   onModeChange: (m: NameMode) => void;
   nickname: string;
   onNicknameChange: (v: string) => void;
   firstName: string;
-  anonExample: ReactNode;
 }) {
   const realNamePreview = firstName.trim() || "Alex";
 
@@ -72,7 +62,6 @@ export default function NameModePicker({
                 </div>
                 <div className="mt-0.5 text-xs leading-relaxed text-muted">
                   {m.body}{" "}
-                  {m.id === "anon" ? <strong className="text-teal">{anonExample}</strong> : null}
                   {m.id === "real" ? <strong className="text-charcoal">{realNamePreview}</strong> : null}
                 </div>
 
@@ -91,8 +80,8 @@ export default function NameModePicker({
                 ) : null}
 
                 {m.id === "real" && selected ? (
-                  <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] bg-[#fdeae6] px-2.5 py-2 text-[11.5px] leading-relaxed text-[#c9503b]">
-                    <span>⚠︎</span>
+                  <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] border border-border bg-input px-2.5 py-2 text-[11.5px] leading-relaxed text-muted">
+                    <span>ℹ</span>
                     <span>Everyone on your sailings will see it. You can switch back any time.</span>
                   </div>
                 ) : null}

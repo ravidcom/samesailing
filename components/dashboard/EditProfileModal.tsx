@@ -5,7 +5,7 @@ import Modal from "@/components/ui/Modal";
 import NameModePicker from "@/components/NameModePicker";
 import { useAuth } from "@/lib/auth-context";
 import type { NameMode } from "@/lib/displayName";
-import { fieldLabel, textInput, primaryButton } from "@/lib/formStyles";
+import { fieldLabel, textInput } from "@/lib/formStyles";
 
 export default function EditProfileModal({
   open,
@@ -14,16 +14,14 @@ export default function EditProfileModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { user, country, mySailings, nameMode, nickname, myDisplayName, updateAccount } = useAuth();
+  const { user, country, nameMode, nickname, updateAccount } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [countryDraft, setCountryDraft] = useState(country);
-  const [modeDraft, setModeDraft] = useState<NameMode>(nameMode);
+  // "anon" is a legacy value from before the picker dropped that option —
+  // treat it the same as never having chosen, so the picker always shows
+  // one of the two remaining options selected instead of neither.
+  const [modeDraft, setModeDraft] = useState<NameMode>(nameMode === "anon" ? "real" : nameMode);
   const [nickDraft, setNickDraft] = useState(nickname);
-
-  // Only used to give the handle preview a representative party type — the
-  // handle itself is stable per sailing, this just shows a realistic example.
-  const previewPartyType = mySailings[0]?.profile?.partyType ?? null;
-  const handlePreview = myDisplayName(previewPartyType).name;
 
   function save() {
     updateAccount({
@@ -38,7 +36,7 @@ export default function EditProfileModal({
   function reset() {
     setName(user?.name ?? "");
     setCountryDraft(country);
-    setModeDraft(nameMode);
+    setModeDraft(nameMode === "anon" ? "real" : nameMode);
     setNickDraft(nickname);
   }
 
@@ -80,7 +78,6 @@ export default function EditProfileModal({
         nickname={nickDraft}
         onNicknameChange={setNickDraft}
         firstName={name}
-        anonExample={handlePreview}
       />
 
       <p className="mt-3 text-[11.5px] leading-relaxed text-muted-2">
@@ -93,11 +90,15 @@ export default function EditProfileModal({
         <button
           type="button"
           onClick={close}
-          className="flex-1 rounded-xl border-[1.5px] border-border py-2.5 font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+          className="flex-1 rounded-[11px] border-[1.5px] border-border py-3.5 font-sans text-[15px] font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
         >
           Cancel
         </button>
-        <button type="button" onClick={save} className={primaryButton + " mt-0 flex-1"}>
+        <button
+          type="button"
+          onClick={save}
+          className="flex-1 rounded-[11px] border-none bg-teal py-3.5 font-sans text-[15px] font-semibold text-white transition-colors hover:bg-teal-dark"
+        >
           Save
         </button>
       </div>
