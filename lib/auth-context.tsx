@@ -57,6 +57,8 @@ type AuthContextValue = {
   loggedIn: boolean;
   userId: string | null;
   user: AuthUser | null;
+  /** False for Google/Facebook accounts — they never set a password to change. */
+  hasPassword: boolean;
   country: string;
   notifications: NotificationSettings;
   mySailings: JoinedSailing[];
@@ -75,11 +77,8 @@ type AuthContextValue = {
   joinSailing: (sailing: JoinedSailing) => Promise<{ error?: string }>;
   updateSailingProfile: (sailingId: string, profile: OnboardingProfile) => Promise<{ error?: string }>;
   removeSailing: (sailingId: string) => Promise<void>;
-  updateAccount: (patch: {
-    country?: string;
-    nameMode?: NameMode;
-    nickname?: string;
-  }) => Promise<void>;
+  updateAccount: (patch: { nameMode?: NameMode; nickname?: string }) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateNotificationSettings: (patch: Partial<NotificationSettings>) => Promise<void>;
   signOut: () => Promise<void>;
 };
@@ -350,14 +349,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMySailings((prev) => prev.filter((s) => s.id !== sailingId));
   }
 
-  async function updateAccount(patch: {
-    country?: string;
-    nameMode?: NameMode;
-    nickname?: string;
-  }) {
+  async function updateAccount(patch: { nameMode?: NameMode; nickname?: string }) {
     if (!authUser) return;
-    const dbPatch: Partial<Pick<ProfileRow, "country" | "name_mode" | "nickname">> = {};
-    if (patch.country !== undefined) dbPatch.country = patch.country;
+    const dbPatch: Partial<Pick<ProfileRow, "name_mode" | "nickname">> = {};
     if (patch.nameMode !== undefined) dbPatch.name_mode = patch.nameMode;
     if (patch.nickname !== undefined) dbPatch.nickname = patch.nickname;
     const { data } = await supabase
@@ -383,6 +377,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) setProfile(data);
   }
 
+  async function updatePassword(newPassword: string) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) return { error: error.message };
+    return {};
+  }
+
   async function signOut() {
     await supabase.auth.signOut();
   }
@@ -394,6 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: authUser
       ? { name: profile?.name ?? "Traveler", email: authUser.email ?? "-", avatar: profile?.avatar ?? "😊" }
       : null,
+    hasPassword: authUser?.app_metadata?.provider === "email",
     country: profile?.country ?? "",
     notifications: {
       notifyDigest: profile?.notify_digest ?? true,
@@ -415,6 +416,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateSailingProfile,
     removeSailing,
     updateAccount,
+    updatePassword,
     updateNotificationSettings,
     signOut,
   };
