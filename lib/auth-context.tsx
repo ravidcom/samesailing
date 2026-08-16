@@ -76,7 +76,6 @@ type AuthContextValue = {
   updateSailingProfile: (sailingId: string, profile: OnboardingProfile) => Promise<{ error?: string }>;
   removeSailing: (sailingId: string) => Promise<void>;
   updateAccount: (patch: {
-    name?: string;
     country?: string;
     nameMode?: NameMode;
     nickname?: string;
@@ -352,14 +351,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function updateAccount(patch: {
-    name?: string;
     country?: string;
     nameMode?: NameMode;
     nickname?: string;
   }) {
     if (!authUser) return;
-    const dbPatch: Partial<Pick<ProfileRow, "name" | "country" | "name_mode" | "nickname">> = {};
-    if (patch.name !== undefined) dbPatch.name = patch.name;
+    const dbPatch: Partial<Pick<ProfileRow, "country" | "name_mode" | "nickname">> = {};
     if (patch.country !== undefined) dbPatch.country = patch.country;
     if (patch.nameMode !== undefined) dbPatch.name_mode = patch.nameMode;
     if (patch.nickname !== undefined) dbPatch.nickname = patch.nickname;

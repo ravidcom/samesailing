@@ -1,25 +1,15 @@
 "use client";
 
-import { useState } from "react";
-import { COUNTRIES, COUNTRY_OTHER } from "@/lib/countries";
 import { GOALS } from "@/lib/goals";
 import type { StepProps } from "./types";
-import { fieldLabel, textInput, primaryButton, backLink, errorText } from "@/lib/formStyles";
+import { fieldLabel, primaryButton, backLink, errorText } from "@/lib/formStyles";
 import Toggle from "@/components/ui/Toggle";
 import PrideStripe from "@/components/ui/PrideStripe";
-
-const ALL_COUNTRIES = [...COUNTRIES, COUNTRY_OTHER];
+import CountrySelect from "@/components/ui/CountrySelect";
 
 type Props = StepProps & { onContinue: () => void; onBack: () => void; continueLabel?: string };
 
 export default function StepDetails({ data, update, error, onContinue, onBack, continueLabel }: Props) {
-  const [search, setSearch] = useState("");
-
-  const filtered = ALL_COUNTRIES.filter((c) =>
-    c.toLowerCase().includes(search.toLowerCase())
-  );
-  const listSize = search ? Math.min(Math.max(filtered.length, 2), 6) : 5;
-
   function toggleGoal(id: string) {
     const has = data.goals.includes(id);
     update({ goals: has ? data.goals.filter((g) => g !== id) : [...data.goals, id] });
@@ -28,41 +18,7 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
   return (
     <div>
       <label className={fieldLabel}>Where are you from?</label>
-      {data.country ? (
-        <div className="mb-1.5 flex items-center gap-2 rounded-lg bg-[#dff1f2] px-3 py-2 text-sm font-semibold text-teal">
-          <span>✓ {data.country}</span>
-          <button
-            type="button"
-            onClick={() => update({ country: "" })}
-            className="ml-auto bg-none text-base text-muted-2 hover:text-muted"
-            aria-label="Clear country"
-          >
-            ×
-          </button>
-        </div>
-      ) : (
-        <>
-          <input
-            className={textInput + " mb-1.5"}
-            placeholder="🌍 Search country..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <select
-            size={listSize}
-            className="w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input p-1.5 font-sans text-sm text-charcoal"
-            onChange={(e) => update({ country: e.target.value })}
-            value=""
-          >
-            <option value="" disabled hidden />
-            {filtered.map((c) => (
-              <option key={c} value={c}>
-                {c === COUNTRY_OTHER ? "🌍 Other / Not listed" : c}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
+      <CountrySelect value={data.country} onChange={(v) => update({ country: v })} />
 
       <label className={fieldLabel + " mt-[18px]"}>What are you looking for?</label>
       <div className="relative grid grid-flow-col grid-rows-4 grid-cols-2 gap-2 gap-x-2.5">
