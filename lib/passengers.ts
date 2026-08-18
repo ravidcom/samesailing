@@ -11,12 +11,12 @@ export type Passenger = {
   name: string;
   anon: boolean;
   who: string;
-  sub: string;
-  langs: string[];
+  ageLabel: string;
   country?: string;
   goals: string[];
-  cue: string;
+  bio: string;
   lgbtq: boolean;
+  kids: { gender: string; age: string }[];
 };
 
 const AVATAR_BG: Record<PartyType, string> = {
@@ -32,12 +32,6 @@ export function passengerFromProfile(
   profile: OnboardingProfile,
   nameFields?: NameFields | null
 ): Passenger {
-  const sub =
-    profile.partyType === "family" && profile.kids.length
-      ? profile.kids.map((k) => `${k.gender || "Child"}${k.age ? " " + k.age : ""}`).join(", ")
-      : profile.ageRanges.length
-        ? `ages ${profile.ageRanges.map((a) => a.replace("-", "–")).join(", ")}`
-        : "";
   const { name, anon } = resolveDisplayName(id, profile.partyType, nameFields);
   return {
     id,
@@ -47,12 +41,12 @@ export function passengerFromProfile(
     name,
     anon,
     who: PARTY_LABELS[profile.partyType],
-    sub,
-    langs: [],
+    ageLabel: profile.ageRanges.map((a) => a.replace("-", "–")).join(", "),
     country: profile.country || undefined,
     goals: profile.goals.map((gid) => GOALS.find((g) => g.id === gid)?.label ?? gid),
-    cue: profile.bio || (profile.country ? `From ${profile.country}` : "Just joined"),
+    bio: profile.bio,
     // Older rows stored before this field existed won't have it.
     lgbtq: profile.lgbtq ?? false,
+    kids: profile.kids,
   };
 }

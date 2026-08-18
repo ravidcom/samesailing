@@ -5,8 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useAuth, type PartyType } from "@/lib/auth-context";
 import type { Passenger } from "@/lib/passengers";
+import { matchCue, type MatchCue } from "@/lib/matchCue";
 import { flagUrl } from "@/lib/countryCodes";
 import PrideStripe from "@/components/ui/PrideStripe";
+import Modal from "@/components/ui/Modal";
+import EditSailingProfileModal from "@/components/dashboard/EditSailingProfileModal";
 
 const FILTERS: { id: "all" | PartyType; label: string }[] = [
   { id: "all", label: "All" },
@@ -16,11 +19,61 @@ const FILTERS: { id: "all" | PartyType; label: string }[] = [
   { id: "friends", label: "Friends" },
 ];
 
-function overlapCue(cue: string, myGoals: string[], theirGoals: string[]) {
-  const shared = myGoals.filter((g) => theirGoals.includes(g));
-  if (shared.length >= 2) return `You both want ${shared.slice(0, 2).join(" & ")}`;
-  if (shared.length === 1) return `You both want ${shared[0]}`;
-  return cue;
+function MessageIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6.5h16v11H8.5L4 20.5z" />
+    </svg>
+  );
+}
+
+function NameSubtitle({ p }: { p: Passenger }) {
+  const flag = p.country ? flagUrl(p.country) : null;
+  const partyAndAge = p.ageLabel ? `${p.who}, ${p.ageLabel}` : p.who;
+  return (
+    <>
+      <div className="flex items-center gap-1.5 text-[16.5px] leading-[1.2] font-bold text-charcoal">
+        {p.name}
+        {p.anon ? (
+          <span className="rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
+            Anon
+          </span>
+        ) : null}
+        {p.lgbtq ? (
+          <span title="LGBTQ+ community">
+            <PrideStripe />
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-[3px] flex items-center gap-1 text-[12.5px] leading-[1.4] text-muted-2">
+        <span>{partyAndAge}</span>
+        {p.country ? (
+          <span className="flex items-center gap-1">
+            · {flag ? <Image src={flag} alt="" width={14} height={10} className="rounded-[2px]" unoptimized /> : null} {p.country}
+          </span>
+        ) : null}
+      </div>
+    </>
+  );
+}
+
+function MatchLine({ cue }: { cue: MatchCue }) {
+  return (
+    <div
+      className={`mt-3.5 flex items-start gap-2 rounded-[13px] border px-[13px] py-[11px] ${
+        cue.hasMatch ? "border-[#d6ead9] bg-[#eef8f2]" : "border-[#e3efef] bg-[#f4f8f8]"
+      }`}
+    >
+      <span className={`text-[13px] leading-[1.35] ${cue.hasMatch ? "text-[#3f8b64]" : "text-muted-2"}`}>✦</span>
+      <span
+        className={`min-w-0 flex-1 overflow-hidden text-[13px] leading-[1.4] font-semibold text-ellipsis whitespace-nowrap ${
+          cue.hasMatch ? "text-[#2f6b4c]" : "text-muted-2"
+        }`}
+      >
+        {cue.text}
+      </span>
+    </div>
+  );
 }
 
 export default function PassengerBoard({
@@ -33,7 +86,10 @@ export default function PassengerBoard({
   const { loggedIn, userId, mySailings } = useAuth();
   const [filter, setFilter] = useState<"all" | PartyType>("all");
   const [lgbtqOnly, setLgbtqOnly] = useState(false);
+  const [profileSheetId, setProfileSheetId] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const hasJoined = mySailings.some((s) => s.id === sailingId);
+  const mySailing = mySailings.find((s) => s.id === sailingId);
 
   const fullList = useMemo(() => {
     const mine = passengers.find((p) => p.id === userId);
@@ -41,11 +97,17 @@ export default function PassengerBoard({
     return [mine, ...passengers.filter((p) => p.id !== userId)];
   }, [passengers, userId]);
 
-  const myGoals = fullList.find((p) => p.id === userId)?.goals ?? [];
+  const me = fullList.find((p) => p.id === userId) ?? null;
   const list = fullList
     .filter((p) => filter === "all" || p.t === filter)
     .filter((p) => !lgbtqOnly || p.lgbtq);
   const filtered = filter !== "all" || lgbtqOnly;
+  const sheetPassenger = fullList.find((p) => p.id === profileSheetId) ?? null;
+
+  function openEditFromSheet() {
+    setProfileSheetId(null);
+    setEditOpen(true);
+  }
 
   return (
     <>
@@ -94,97 +156,75 @@ export default function PassengerBoard({
               : `${fullList.length} traveler${fullList.length === 1 ? "" : "s"} aboard`}
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
             {list.map((p) => {
               const isMe = p.id === userId;
-              const smartCue = !isMe && myGoals.length ? overlapCue(p.cue, myGoals, p.goals) : p.cue;
-              const flag = p.country ? flagUrl(p.country) : null;
-              const subParts = [
-                p.who,
-                p.country ? p.country : "",
-                p.langs.length ? `speaks ${p.langs.join(", ")}` : "",
-              ].filter(Boolean);
+              const cue = isMe ? { text: "This is how others see you", hasMatch: false } : matchCue(me, p);
 
               return (
                 <div
                   key={p.id}
-                  className="flex flex-col rounded-[20px] border-[1.5px] border-border bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(42,32,28,.1)]"
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => setProfileSheetId(p.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") setProfileSheetId(p.id);
+                  }}
+                  className="cursor-pointer rounded-[20px] border border-[#e3efef] bg-white p-[17px] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(42,32,28,.1)]"
                 >
-                  <div className="mb-3.5 flex items-center gap-3">
+                  <div className="flex items-center gap-3">
                     <div
-                      className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full text-[22px]"
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[23px]"
                       style={{ background: p.avBg }}
                     >
                       {p.av}
                     </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 text-sm font-bold text-charcoal">
-                        {p.name}
-                        {isMe ? " (you)" : ""}
-                        {p.anon ? (
-                          <span className="rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9px] font-bold tracking-[.06em] text-muted-2 uppercase">
-                            Anon
-                          </span>
-                        ) : null}
-                        {p.lgbtq ? (
-                          <span title="LGBTQ+ community">
-                            <PrideStripe />
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-2">
-                        {flag ? (
-                          <Image src={flag} alt="" width={16} height={12} className="rounded-[2px]" unoptimized />
-                        ) : null}
-                        {subParts.join(" · ")}
-                      </div>
+                    <div className="min-w-0 flex-1">
+                      <NameSubtitle p={p} />
                     </div>
+                    {isMe ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditOpen(true);
+                        }}
+                        aria-label="Edit my profile"
+                        className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-teal text-lg transition-colors hover:bg-teal-dark"
+                      >
+                        ✏️
+                      </button>
+                    ) : (
+                      <Link
+                        href={loggedIn && hasJoined ? `/chat?with=${p.id}&sailing=${sailingId}` : `/join/${sailingId}`}
+                        onClick={(e) => e.stopPropagation()}
+                        aria-label={`Send a private message to ${p.name}`}
+                        className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full bg-teal transition-colors hover:bg-teal-dark"
+                      >
+                        <MessageIcon />
+                      </Link>
+                    )}
                   </div>
 
-                  {p.sub ? <div className="mb-2 text-xs leading-relaxed text-[#5f8288]">{p.sub}</div> : null}
-
-                  <div className="mb-3 flex items-start gap-1.5 rounded-[11px] border border-[#c6e3d3] bg-[#e6f3ec] px-2.5 py-2 text-xs font-bold leading-tight text-[#2f8f6b]">
-                    ✦ {smartCue}
-                  </div>
+                  <MatchLine cue={cue} />
 
                   {p.goals.length ? (
-                    <>
-                      <div className="mb-1.5 text-[10px] font-semibold tracking-[.06em] text-muted-2 uppercase">
-                        Looking for
-                      </div>
-                      <div className="mb-3 flex flex-wrap gap-1.5">
-                        {p.goals.map((g) => (
-                          <span
-                            key={g}
-                            className="rounded-full bg-teal-tint px-2.5 py-1 text-[11px] font-medium text-teal"
-                          >
-                            {g}
-                          </span>
-                        ))}
-                      </div>
-                    </>
-                  ) : null}
-
-                  {isMe ? null : loggedIn && hasJoined ? (
-                    <div className="mt-auto">
-                      <Link
-                        href={`/chat?with=${p.id}&sailing=${sailingId}`}
-                        className="block w-full rounded-[11px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
-                      >
-                        ✉ Send private message
-                      </Link>
-                      <div className="mt-1.5 text-center text-[11px] text-muted-2">
-                        Opens your sailing&apos;s messages
-                      </div>
+                    <div className="mt-[13px] flex flex-wrap gap-[7px]">
+                      {p.goals.slice(0, 2).map((g) => (
+                        <span
+                          key={g}
+                          className="rounded-full bg-[#eaf6f7] px-3 py-1.5 text-[12.5px] font-semibold text-teal"
+                        >
+                          {g}
+                        </span>
+                      ))}
+                      {p.goals.length > 2 ? (
+                        <span className="rounded-full bg-[#f4f8f8] px-3 py-1.5 text-[12.5px] font-semibold text-muted-2">
+                          +{p.goals.length - 2}
+                        </span>
+                      ) : null}
                     </div>
-                  ) : (
-                    <Link
-                      href={`/join/${sailingId}`}
-                      className="mt-auto block w-full rounded-[11px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
-                    >
-                      Join to message
-                    </Link>
-                  )}
+                  ) : null}
                 </div>
               );
             })}
@@ -211,6 +251,74 @@ export default function PassengerBoard({
           ) : null}
         </div>
       </div>
+
+      <Modal open={!!sheetPassenger} onClose={() => setProfileSheetId(null)}>
+        {sheetPassenger ? (
+          <div>
+            <div className="flex items-center gap-3">
+              <div
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[23px]"
+                style={{ background: sheetPassenger.avBg }}
+              >
+                {sheetPassenger.av}
+              </div>
+              <div className="min-w-0 flex-1">
+                <NameSubtitle p={sheetPassenger} />
+              </div>
+            </div>
+
+            <MatchLine
+              cue={
+                sheetPassenger.id === userId
+                  ? { text: "This is how others see you", hasMatch: false }
+                  : matchCue(me, sheetPassenger)
+              }
+            />
+
+            {sheetPassenger.goals.length ? (
+              <>
+                <div className="mt-4 text-[10px] font-semibold tracking-[.06em] text-muted-2 uppercase">
+                  Looking for
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  {sheetPassenger.goals.map((g) => (
+                    <span key={g} className="rounded-full bg-teal-tint px-2.5 py-1 text-[11px] font-medium text-teal">
+                      {g}
+                    </span>
+                  ))}
+                </div>
+              </>
+            ) : null}
+
+            {sheetPassenger.bio ? (
+              <p className="mt-4 text-sm leading-relaxed text-muted">{sheetPassenger.bio}</p>
+            ) : null}
+
+            <div className="mt-5">
+              {sheetPassenger.id === userId ? (
+                <button
+                  type="button"
+                  onClick={openEditFromSheet}
+                  className="block w-full rounded-[11px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                >
+                  ✏️ Edit my profile
+                </button>
+              ) : (
+                <Link
+                  href={loggedIn && hasJoined ? `/chat?with=${sheetPassenger.id}&sailing=${sailingId}` : `/join/${sailingId}`}
+                  className="block w-full rounded-[11px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                >
+                  ✉ Send private message
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
+      {mySailing ? (
+        <EditSailingProfileModal sailing={mySailing} open={editOpen} onClose={() => setEditOpen(false)} />
+      ) : null}
     </>
   );
 }
