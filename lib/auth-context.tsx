@@ -65,8 +65,6 @@ type AuthContextValue = {
   hasUnreadMessages: boolean;
   unreadCount: number;
   markChatSeen: () => void;
-  profileModalOpen: boolean;
-  showProfileModal: (open: boolean) => void;
   nameMode: NameMode;
   nickname: string;
   /** Resolves what I'm labelled as for a given (per-sailing) party type — the handle noun differs by party type, so this needs to know which sailing's context it's being shown in. */
@@ -136,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [mySailings, setMySailings] = useState<JoinedSailing[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
   async function loadUserData(userId: string) {
     const [{ data: profileRow }, { data: sailingRows }] = await Promise.all([
@@ -169,7 +166,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setMySailings([]);
         setUnreadCount(0);
-        setProfileModalOpen(false);
       }
     });
 
@@ -218,14 +214,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!authUser) return;
     localStorage.setItem(chatSeenKey(authUser.id), new Date().toISOString());
     setUnreadCount(0);
-  }
-
-  // Named action (not a raw setter) so effects that call it from other
-  // components — e.g. DashboardContent syncing ?edit=1 — aren't flagged by
-  // the set-state-in-effect lint rule, which pattern-matches on setX() calls
-  // written directly in an effect body.
-  function showProfileModal(open: boolean) {
-    setProfileModalOpen(open);
   }
 
   function myDisplayName(partyType: PartyType | null): { name: string; anon: boolean } {
@@ -404,8 +392,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     hasUnreadMessages: unreadCount > 0,
     unreadCount,
     markChatSeen,
-    profileModalOpen,
-    showProfileModal,
     nameMode: profile?.name_mode ?? "anon",
     nickname: profile?.nickname ?? "",
     myDisplayName,

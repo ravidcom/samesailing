@@ -1,32 +1,14 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import SailingCard from "@/components/dashboard/SailingCard";
-import EditProfileModal from "@/components/dashboard/EditProfileModal";
 import NotificationSettings from "@/components/dashboard/NotificationSettings";
 import NotificationLog from "@/components/dashboard/NotificationLog";
 import { useAuth } from "@/lib/auth-context";
 
-function DashboardContent() {
-  const { loading, loggedIn, user, country, mySailings, profileModalOpen, showProfileModal } = useAuth();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const editParam = searchParams.get("edit");
-
-  // Mirrors the modal (shared AuthContext state, so the mobile tab bar's
-  // Profile tab can reflect it too) to the ?edit=1 param whenever it
-  // changes. This has to be a real effect, not a render-time sync —
-  // showProfileModal updates state that lives in AuthProvider, a different
-  // component, and updating another component's state synchronously during
-  // this component's render throws ("Cannot update a component while
-  // rendering a different component").
-  useEffect(() => {
-    showProfileModal(editParam === "1");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editParam]);
+export default function DashboardPage() {
+  const { loading, loggedIn, user, country, mySailings } = useAuth();
 
   if (loading) {
     return (
@@ -79,13 +61,12 @@ function DashboardContent() {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => showProfileModal(true)}
+          <Link
+            href="/profile"
             className="rounded-xl border-[1.5px] border-border px-4 py-2 font-sans text-sm font-medium text-muted transition-colors hover:border-teal hover:text-teal"
           >
             ✏️ Edit profile
-          </button>
+          </Link>
         </div>
 
         <h2 className="mb-3 font-display text-lg font-bold text-charcoal">My cruises</h2>
@@ -118,22 +99,6 @@ function DashboardContent() {
         <NotificationLog />
         <NotificationSettings />
       </main>
-
-      <EditProfileModal
-        open={profileModalOpen}
-        onClose={() => {
-          showProfileModal(false);
-          if (editParam === "1") router.replace("/dashboard");
-        }}
-      />
     </>
-  );
-}
-
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={null}>
-      <DashboardContent />
-    </Suspense>
   );
 }
