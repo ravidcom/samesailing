@@ -46,7 +46,7 @@ function ProfileIcon({ active }: { active: boolean }) {
 }
 
 export default function MobileTabBar() {
-  const { loggedIn, mySailings, unreadCount, profileModalOpen } = useAuth();
+  const { loggedIn, mySailings, unreadCount } = useAuth();
   const pathname = usePathname();
 
   if (!loggedIn) return null;
@@ -61,19 +61,11 @@ export default function MobileTabBar() {
   // away via each dashboard card's own Passengers link.
   const passengersHref = mySailings.length > 0 ? `/sailing/${mySailings[0].id}/board` : "/dashboard";
 
-  // Profile has no separate route — it lives at the top of the dashboard.
-  // Rather than linking to the same URL as Sailings (which made both tabs
-  // indistinguishable and highlighted at once), Profile links to a
-  // ?edit=1 variant that auto-opens the account-edit modal (tracked as
-  // shared AuthContext state — reading useSearchParams() directly here
-  // instead would force this component's Suspense boundary to diverge
-  // between the statically-prerendered shell and a real request's query
-  // string, which is what caused a hydration mismatch on every page load).
   const tabs = [
-    { key: "sailings", label: "Sailings", href: "/dashboard", Icon: ShipIcon, active: pathname === "/dashboard" && !profileModalOpen, badgeCount: 0 },
+    { key: "sailings", label: "Sailings", href: "/dashboard", Icon: ShipIcon, active: pathname === "/dashboard", badgeCount: 0 },
     { key: "passengers", label: "Passengers", href: passengersHref, Icon: PeopleIcon, active: pathname.endsWith("/board"), badgeCount: 0 },
     { key: "chat", label: "Chat", href: "/chat", Icon: ChatIcon, active: pathname === "/chat", badgeCount: unreadCount },
-    { key: "profile", label: "Profile", href: "/dashboard?edit=1", Icon: ProfileIcon, active: pathname === "/dashboard" && profileModalOpen, badgeCount: 0 },
+    { key: "profile", label: "Profile", href: "/profile", Icon: ProfileIcon, active: pathname === "/profile", badgeCount: 0 },
   ];
 
   return (
