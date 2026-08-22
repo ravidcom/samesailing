@@ -8,6 +8,7 @@ import type { Passenger } from "@/lib/passengers";
 import { matchCue, type MatchCue } from "@/lib/matchCue";
 import { flagUrl } from "@/lib/countryCodes";
 import PrideStripe from "@/components/ui/PrideStripe";
+import Toggle from "@/components/ui/Toggle";
 import Modal from "@/components/ui/Modal";
 import EditSailingProfileModal from "@/components/dashboard/EditSailingProfileModal";
 
@@ -18,6 +19,19 @@ const FILTERS: { id: "all" | PartyType; label: string }[] = [
   { id: "solo", label: "Solo" },
   { id: "friends", label: "Friends" },
 ];
+
+/** The LGBTQ+ toggle is a per-user preference, not per-sailing - it should
+ * still be on next time you open a different sailing's board. */
+function lgbtqPrefKey(userId: string) {
+  return `samesailing:lgbtqOnly:${userId}`;
+}
+function loadLgbtqPref(userId: string): boolean {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(lgbtqPrefKey(userId)) === "1";
+}
+function saveLgbtqPref(userId: string, value: boolean) {
+  localStorage.setItem(lgbtqPrefKey(userId), value ? "1" : "0");
+}
 
 function MessageIcon() {
   return (
@@ -85,7 +99,18 @@ export default function PassengerBoard({
 }) {
   const { loggedIn, userId, mySailings } = useAuth();
   const [filter, setFilter] = useState<"all" | PartyType>("all");
-  const [lgbtqOnly, setLgbtqOnly] = useState(false);
+  const [lgbtqOnly, setLgbtqOnlyState] = useState(false);
+  // Render-time sync (not an effect) - safe because lgbtqOnly is this
+  // component's own local state, same pattern as ChatApp's read-map load.
+  const [lgbtqLoadedForUser, setLgbtqLoadedForUser] = useState<string | null>(null);
+  if (userId && userId !== lgbtqLoadedForUser) {
+    setLgbtqLoadedForUser(userId);
+    setLgbtqOnlyState(loadLgbtqPref(userId));
+  }
+  function setLgbtqOnly(value: boolean) {
+    setLgbtqOnlyState(value);
+    if (userId) saveLgbtqPref(userId, value);
+  }
   const [profileSheetId, setProfileSheetId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const hasJoined = mySailings.some((s) => s.id === sailingId);
@@ -98,10 +123,16 @@ export default function PassengerBoard({
   }, [passengers, userId]);
 
   const me = fullList.find((p) => p.id === userId) ?? null;
-  const list = fullList
-    .filter((p) => filter === "all" || p.t === filter)
-    .filter((p) => !lgbtqOnly || p.lgbtq);
-  const filtered = filter !== "all" || lgbtqOnly;
+  // Chip counts reflect the LGBTQ+ toggle (so a chip's count always matches
+  // what tapping it produces); the toggle's own "N aboard" reflects the
+  // active party-type chip instead, so the two controls stay consistent
+  // with each other in both directions.
+  const lgbtqScoped = fullList.filter((p) => !lgbtqOnly || p.lgbtq);
+  const partyScoped = fullList.filter((p) => filter === "all" || p.t === filter);
+  const countFor = (id: "all" | PartyType) =>
+    id === "all" ? lgbtqScoped.length : lgbtqScoped.filter((p) => p.t === id).length;
+  const lgbtqAboardCount = partyScoped.filter((p) => p.lgbtq).length;
+  const list = lgbtqScoped.filter((p) => filter === "all" || p.t === filter);
   const sheetPassenger = fullList.find((p) => p.id === profileSheetId) ?? null;
 
   function openEditFromSheet() {
@@ -111,51 +142,53 @@ export default function PassengerBoard({
 
   return (
     <>
-      <div className="sticky top-[62px] z-[90] border-b border-border bg-[#eef7f7] px-4 py-3 sm:px-8 md:px-12">
-        <div className="mx-auto flex max-w-[1000px] items-center gap-2 overflow-x-auto">
-          <span className="shrink-0 text-[11px] font-semibold tracking-[.08em] text-muted-2 uppercase">
-            Who
-          </span>
-          <div className="h-5.5 w-px shrink-0 bg-border" />
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFilter(f.id)}
-              className={`shrink-0 rounded-full border-[1.5px] px-4 py-1.5 font-sans text-[13px] font-medium transition-all ${
-                filter === f.id
-                  ? "border-teal bg-teal text-white"
-                  : "border-border bg-white text-muted hover:border-teal hover:bg-teal hover:text-white"
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
-          <div className="h-5.5 w-px shrink-0 bg-border" />
-          <button
-            type="button"
-            onClick={() => setLgbtqOnly((v) => !v)}
-            aria-pressed={lgbtqOnly}
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border-[1.5px] px-4 py-1.5 font-sans text-[13px] font-medium transition-all ${
-              lgbtqOnly
-                ? "border-teal bg-teal text-white"
-                : "border-border bg-white text-muted hover:border-teal hover:bg-teal hover:text-white"
-            }`}
-          >
-            <PrideStripe />
-            LGBTQ+
-          </button>
+      <div className="sticky top-[62px] z-[90] border-b border-border bg-[#eef7f7] px-4 sm:px-8 md:px-12">
+        <div className="mx-auto max-w-[1000px]">
+          <div className="relative">
+            <div className="flex items-center gap-1.75 overflow-x-auto py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {FILTERS.map((f) => {
+                const count = countFor(f.id);
+                const active = filter === f.id;
+                const disabled = count === 0 && !active;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => setFilter(f.id)}
+                    className={`shrink-0 rounded-full border-[1.5px] px-3.5 py-1.5 font-sans text-[13px] font-semibold transition-all ${
+                      active
+                        ? "border-teal bg-teal text-white"
+                        : disabled
+                          ? "cursor-not-allowed border-[#e6f0f0] bg-[#f7fafa] text-[#c3d6d8]"
+                          : "border-border bg-white text-muted hover:border-teal hover:bg-teal hover:text-white"
+                    }`}
+                  >
+                    {f.label} <span className={active ? "opacity-70" : "text-[#9db4b7]"}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {/* Fades the scrollable row's right edge instead of showing a
+                scrollbar track, which reads as broken on desktop. */}
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-l from-[#eef7f7] to-transparent"
+            />
+          </div>
+
+          <div className="flex items-center gap-2.5 pb-3">
+            <PrideStripe className="h-3.5 w-5 shrink-0" />
+            <span className="flex-1 font-sans text-[13px] font-semibold text-muted">
+              LGBTQ+ friendly <span className="font-medium text-[#9db4b7]">· {lgbtqAboardCount} aboard</span>
+            </span>
+            <Toggle on={lgbtqOnly} onChange={() => setLgbtqOnly(!lgbtqOnly)} />
+          </div>
         </div>
       </div>
 
       <div className="px-4 py-7 sm:px-8 md:px-12">
         <div className="mx-auto max-w-[1000px]">
-          <div className="mb-3 text-xs font-semibold text-muted-2">
-            {filtered
-              ? `${list.length} of ${fullList.length} travelers`
-              : `${fullList.length} traveler${fullList.length === 1 ? "" : "s"} aboard`}
-          </div>
-
           <div className="grid grid-cols-1 gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
             {list.map((p) => {
               const isMe = p.id === userId;
