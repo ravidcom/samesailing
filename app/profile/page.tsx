@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import NameModePicker from "@/components/NameModePicker";
+import NotificationSettings from "@/components/dashboard/NotificationSettings";
 import { useAuth } from "@/lib/auth-context";
 import type { NameMode } from "@/lib/displayName";
 import { fieldLabel, textInput, errorText } from "@/lib/formStyles";
@@ -146,6 +147,8 @@ export default function ProfilePage() {
             </button>
           </>
         ) : null}
+
+        <NotificationSettings />
 
         <div className="mt-6 flex gap-2.5">
           <Link
