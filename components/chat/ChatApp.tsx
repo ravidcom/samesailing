@@ -841,14 +841,8 @@ function ChatAppInner() {
           mobileShowingThread ? "hidden" : "flex"
         }`}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-border bg-[#f3fbfb] px-4 py-3.5">
+        <div className="shrink-0 border-b border-border bg-[#f3fbfb] px-4 py-3.5">
           <div className="font-display text-[20px] font-bold text-charcoal">Messages</div>
-          <Link
-            href={`/sailing/${activeSailing.id}/board`}
-            className="shrink-0 font-sans text-xs font-semibold text-teal"
-          >
-            ＋ New
-          </Link>
         </div>
 
         {orderedSailings.length > 1 ? (
