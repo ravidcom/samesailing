@@ -186,7 +186,7 @@ export default function PassengerBoard({
           <div className="flex items-center gap-2.5 pb-3">
             <PrideStripe className="h-3.5 w-5 shrink-0" />
             <span className="flex-1 font-sans text-[13px] font-semibold text-muted">
-              LGBTQ+ friendly <span className="font-medium text-[#9db4b7]">· {lgbtqAboardCount} aboard</span>
+              LGBTQ+ Member <span className="font-medium text-[#9db4b7]">· {lgbtqAboardCount} aboard</span>
             </span>
             <Toggle on={lgbtqOnly} onChange={() => setLgbtqOnly(!lgbtqOnly)} />
           </div>
