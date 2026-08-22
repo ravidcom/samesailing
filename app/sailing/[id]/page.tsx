@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import NavBar from "@/components/NavBar";
-import { getSailingById, memberCount, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
+import { getSailingById, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { scarcityState } from "@/lib/pioneer";
+import { createServerClient } from "@/lib/supabase/server";
 import FoundingBadgeTiles from "@/components/board/FoundingBadgeTiles";
 
 export default async function SailingResultPage({
@@ -13,9 +14,14 @@ export default async function SailingResultPage({
   const sailing = await getSailingById(id);
   if (!sailing) notFound();
 
-  const n = memberCount(sailing.id);
+  const supabase = createServerClient();
+  const { count } = await supabase
+    .from("joined_sailings")
+    .select("id", { count: "exact", head: true })
+    .eq("sailing_id", sailing.id);
+  const n = count ?? 0;
   const dense = n >= MIN_BROWSE_THRESHOLD;
-  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate));
+  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
 
   return (
     <>

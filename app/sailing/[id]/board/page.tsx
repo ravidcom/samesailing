@@ -49,9 +49,8 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
     return passengerFromProfile(r.user_id, r.profile, nameFields, r.join_rank);
   });
 
-  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate));
-  const nights = sailing.itinerary.match(/\d+/)?.[0] ?? "";
-  const lineLabel = `${sailing.line} · ${nights} Nights`.toUpperCase();
+  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
+  const lineLabel = `${sailing.line} · ${sailing.nights} Nights`.toUpperCase();
 
   return (
     <>

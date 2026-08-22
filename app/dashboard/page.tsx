@@ -5,9 +5,13 @@ import NavBar from "@/components/NavBar";
 import SailingCard from "@/components/dashboard/SailingCard";
 import NotificationLog from "@/components/dashboard/NotificationLog";
 import { useAuth } from "@/lib/auth-context";
+import { sailingDateKey } from "@/lib/sailingLabel";
 
 export default function DashboardPage() {
   const { loading, loggedIn, mySailings } = useAuth();
+  const orderedSailings = [...mySailings].sort((a, b) =>
+    sailingDateKey(a.id).localeCompare(sailingDateKey(b.id))
+  );
 
   if (loading) {
     return (
@@ -57,7 +61,7 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        {mySailings.length === 0 ? (
+        {orderedSailings.length === 0 ? (
           <div className="rounded-[16px] border-[1.5px] border-dashed border-border bg-input px-6 py-8 text-center text-sm text-muted">
             You haven&apos;t joined a sailing yet.{" "}
             <Link href="/" className="font-semibold text-teal">
@@ -66,7 +70,7 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2">
-            {mySailings.map((s) => (
+            {orderedSailings.map((s) => (
               <SailingCard key={s.id} sailing={s} />
             ))}
           </div>

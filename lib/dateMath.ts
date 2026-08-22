@@ -13,12 +13,17 @@ export function daysUntilDate(isoOrLabel: string): number | null {
   return Math.round((parsed.getTime() - today.getTime()) / 86400000);
 }
 
-export function countdownLabelForDays(days: number | null): string {
+/** `nights` bounds "Currently sailing" to the cruise's actual date range
+ * (departure through departure+nights) - past that, the cruise has
+ * returned and there's nothing left to count down, so no label at all
+ * rather than claiming it's still underway indefinitely. */
+export function countdownLabelForDays(days: number | null, nights: number): string {
   if (days === null) return "";
   if (days > 1) return `${days} days to go`;
   if (days === 1) return "Tomorrow!";
   if (days === 0) return "Setting sail today!";
-  return "Currently sailing";
+  if (days >= -nights) return "Currently sailing";
+  return "";
 }
 
 /**
