@@ -231,6 +231,7 @@ export type SailingInfo = {
   itinerary: string;
   port: string;
   isoDate: string;
+  nights: number;
   region?: string;
 };
 
@@ -249,6 +250,7 @@ export async function getSailingById(id: string): Promise<SailingInfo | null> {
           itinerary: d.itinerary,
           port: d.port,
           isoDate: d.isoDate,
+          nights: d.nights,
           region: d.region,
         };
       }
@@ -259,19 +261,6 @@ export async function getSailingById(id: string): Promise<SailingInfo | null> {
 
 /** Sailings below this many joined travelers show a "founding member" pitch instead of a browse-first one. */
 export const MIN_BROWSE_THRESHOLD = 10;
-
-/** Cheap, stable string hash so the same sailing always gets the same synthetic member count. */
-function hashCount(id: string, max: number): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) {
-    h = (h * 31 + id.charCodeAt(i)) >>> 0;
-  }
-  return h % (max + 1);
-}
-
-export function memberCount(sailingId: string): number {
-  return hashCount(sailingId, 18);
-}
 
 /**
  * Demo/illustrative stops only — not the sailing's real itinerary — used to
