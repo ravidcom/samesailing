@@ -4,16 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
 
 const SWIPE_THRESHOLD_PX = 50;
 const MAX_DOTS = 5;
-
-/** Sort key: the YYYY-MM-DD suffix every sailing id ends with (e.g.
- * "AP-2026-08-15" -> "2026-08-15"), which sorts correctly as a plain
- * string and avoids depending on the display date string's format. */
-function dateKey(sailingId: string): string {
-  return sailingId.match(/(\d{4}-\d{2}-\d{2})$/)?.[1] ?? sailingId;
-}
 
 function ChatBubbleIcon() {
   return (
@@ -69,9 +63,10 @@ export default function SailingHeaderCard({
   }, [shareMenuOpen]);
 
   const joined = mySailings.some((s) => s.id === sailingId);
-  const ordered = [...mySailings].sort((a, b) => dateKey(a.id).localeCompare(dateKey(b.id)));
+  const ordered = [...mySailings].sort((a, b) => sailingDateKey(a.id).localeCompare(sailingDateKey(b.id)));
   const myIndex = ordered.findIndex((s) => s.id === sailingId);
   const count = ordered.length;
+  const shortLabels = shortSailingLabels(ordered);
 
   function goTo(index: number) {
     const target = ordered[index];
@@ -232,7 +227,7 @@ export default function SailingHeaderCard({
                 key={s.id}
                 type="button"
                 onClick={() => goTo(i)}
-                aria-label={`Go to sailing ${i + 1} of ${count}`}
+                aria-label={`Go to ${shortLabels.get(s.id) ?? s.shipName} (sailing ${i + 1} of ${count})`}
                 className={
                   i === myIndex
                     ? "h-1.5 w-5 rounded-full bg-[#0E8C99]"

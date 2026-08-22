@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, type OnboardingProfile } from "@/lib/auth-context";
@@ -9,7 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useTravelerCount } from "@/lib/useTravelerCount";
 import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
-import { GROUP_SEED_MESSAGES, formatTimeLabel, type ChatMessage } from "@/lib/chatData";
+import { GROUP_SEED_MESSAGES, formatTimeLabel, chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
+import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
 
 type GroupMessageRow = {
   id: string;
@@ -35,6 +36,7 @@ type DmThreadSummary = {
   id: string;
   otherUserId: string;
   label: string;
+  anon: boolean;
   avatar: string;
   preview: string;
   timeLabel: string;
@@ -130,13 +132,15 @@ async function fetchDmThreads(
       const otherId = t.user_a === myId ? t.user_b : t.user_a;
       const profile = profileByUser.get(otherId) ?? null;
       const last = lastByThread.get(t.id);
+      const resolved = resolveDisplayName(otherId, profile?.partyType ?? "solo", nameFieldsByUser.get(otherId));
       return {
         id: t.id,
         otherUserId: otherId,
-        label: resolveDisplayName(otherId, profile?.partyType ?? "solo", nameFieldsByUser.get(otherId)).name,
+        label: resolved.name,
+        anon: resolved.anon,
         avatar: profile?.avatar ?? "🙂",
         preview: last ? (last.deleted ? "Message removed" : last.body) : "Say hello!",
-        timeLabel: last ? formatTimeLabel(new Date(last.created_at)) : "",
+        timeLabel: last ? chatListTimeLabel(new Date(last.created_at).getTime()) : "",
         sortKey: last ? new Date(last.created_at).getTime() : 0,
         lastMessageAtMs: last ? new Date(last.created_at).getTime() : 0,
         lastMessageMine: last ? last.sender_id === myId : false,
@@ -145,13 +149,57 @@ async function fetchDmThreads(
     .sort((a, b) => b.sortKey - a.sortKey);
 }
 
-function itinName(itinerary: string) {
-  return itinerary.split("·")[0].trim();
+/** Aggregate unread count for a sailing's chat chip: unread group messages
+ * (exact count) plus how many DM threads have an unread reply (a count of
+ * threads, not of individual messages - the app only tracks one "last
+ * read" timestamp per thread, not per-message read state). */
+async function fetchSailingUnreadCount(
+  supabase: SupabaseClient,
+  sailingId: string,
+  myId: string,
+  readMap: Record<string, number>
+): Promise<number> {
+  const groupReadAt = readMap[`group:${sailingId}`] ?? 0;
+  const [{ count: groupUnread }, dmThreads] = await Promise.all([
+    supabase
+      .from("group_messages")
+      .select("id", { count: "exact", head: true })
+      .eq("sailing_id", sailingId)
+      .neq("user_id", myId)
+      .gt("created_at", new Date(groupReadAt).toISOString()),
+    fetchDmThreads(supabase, sailingId, myId),
+  ]);
+  const dmUnreadThreads = dmThreads.filter(
+    (t) => !t.lastMessageMine && t.lastMessageAtMs > (readMap[`dm:${t.id}`] ?? 0)
+  ).length;
+  return (groupUnread ?? 0) + dmUnreadThreads;
 }
 
-function shortDate(label: string) {
-  const m = label.match(/^(\w+) (\d+)/);
-  return m ? `${m[1].slice(0, 3)} ${m[2]}` : label;
+/** Which sailing's chat the user was last looking at - persisted per user
+ * (not reset each visit), separate from the per-conversation readMap. */
+function activeSailingPrefKey(userId: string) {
+  return `samesailing:activeChatSailing:${userId}`;
+}
+function loadActiveSailingPref(userId: string): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(activeSailingPrefKey(userId));
+}
+function saveActiveSailingPref(userId: string, sailingId: string) {
+  localStorage.setItem(activeSailingPrefKey(userId), sailingId);
+}
+
+/** An unsent DM draft, so a thread you started but haven't sent anything in
+ * yet still shows what you were about to say in the chat list. */
+function dmDraftKey(userId: string, threadId: string) {
+  return `samesailing:dmDraft:${userId}:${threadId}`;
+}
+function loadDmDraft(userId: string, threadId: string): string {
+  if (typeof window === "undefined") return "";
+  return localStorage.getItem(dmDraftKey(userId, threadId)) ?? "";
+}
+function saveDmDraft(userId: string, threadId: string, text: string) {
+  if (text) localStorage.setItem(dmDraftKey(userId, threadId), text);
+  else localStorage.removeItem(dmDraftKey(userId, threadId));
 }
 
 function MessageBubble({
@@ -315,7 +363,20 @@ function ChatAppInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const [activeSailingId, setActiveSailingId] = useState(mySailings[0]?.id ?? null);
+  const [activeSailingId, setActiveSailingIdState] = useState<string | null>(null);
+  const [sailingSelectionInitialized, setSailingSelectionInitialized] = useState(false);
+  const [sailingUnread, setSailingUnread] = useState<Record<string, number> | null>(null);
+  const chipRowRef = useRef<HTMLDivElement>(null);
+  const activeChipRef = useRef<HTMLButtonElement>(null);
+
+  const setActiveSailingId = useCallback(
+    (id: string) => {
+      setActiveSailingIdState(id);
+      if (userId) saveActiveSailingPref(userId, id);
+    },
+    [userId]
+  );
+
   const [pane, setPane] = useState<{ type: "group" } | { type: "dm"; id: string }>({ type: "group" });
   const [mobileShowingThread, setMobileShowingThread] = useState(false);
 
@@ -329,6 +390,11 @@ function ChatAppInner() {
   const [readMap, setReadMap] = useState<Record<string, number>>({});
 
   const activeSailing = mySailings.find((s) => s.id === activeSailingId) ?? mySailings[0] ?? null;
+  const orderedSailings = useMemo(
+    () => [...mySailings].sort((a, b) => sailingDateKey(a.id).localeCompare(sailingDateKey(b.id))),
+    [mySailings]
+  );
+  const shortLabels = useMemo(() => shortSailingLabels(orderedSailings), [orderedSailings]);
   const groupMessages = useMemo(
     () => [...GROUP_SEED_MESSAGES, ...realGroupMsgs],
     [realGroupMsgs]
@@ -359,11 +425,9 @@ function ChatAppInner() {
   );
   const dmScroll = useAutoScroll(dmContainerRef, dmPillRef, dmMessages.length, activeDmThreadId);
 
-  const lastGroupActivity = useMemo(() => {
-    const incoming = realGroupMsgs.filter((m) => !m.mine && m.atMs);
-    return incoming.length ? Math.max(...incoming.map((m) => m.atMs!)) : 0;
-  }, [realGroupMsgs]);
-  const groupUnread = !!activeSailing && lastGroupActivity > (readMap[`group:${activeSailing.id}`] ?? 0);
+  const groupReadAt = activeSailing ? (readMap[`group:${activeSailing.id}`] ?? 0) : 0;
+  const groupUnreadCount = realGroupMsgs.filter((m) => !m.mine && m.atMs && m.atMs > groupReadAt).length;
+  const lastRealGroupMsg = realGroupMsgs.length > 0 ? realGroupMsgs[realGroupMsgs.length - 1] : null;
 
   function markRead(key: string) {
     if (!userId) return;
@@ -407,6 +471,26 @@ function ChatAppInner() {
     setReadMap(loadReadMap(userId));
   }
 
+  // Picks the sailing chip that opens by default: whatever the user had
+  // open last time if it's still valid, otherwise the soonest-departing
+  // sailing that still has something unread, otherwise just the soonest.
+  // The unread-based fallback has to wait for sailingUnread to load (which
+  // itself needs mySailings), so this can run across a couple of renders
+  // rather than deciding everything on the first one.
+  if (!sailingSelectionInitialized && userId && mySailings.length > 0) {
+    const persisted = loadActiveSailingPref(userId);
+    const stillValid = persisted && mySailings.some((s) => s.id === persisted);
+    if (stillValid) {
+      setSailingSelectionInitialized(true);
+      setActiveSailingIdState(persisted);
+    } else if (sailingUnread !== null) {
+      const ordered = [...mySailings].sort((a, b) => sailingDateKey(a.id).localeCompare(sailingDateKey(b.id)));
+      const withUnread = ordered.find((s) => (sailingUnread[s.id] ?? 0) > 0);
+      setSailingSelectionInitialized(true);
+      setActiveSailingIdState((withUnread ?? ordered[0]).id);
+    }
+  }
+
   // Whichever pane (group or a DM thread) is currently open is, by definition,
   // being read — keep its read timestamp fresh as new messages arrive so it
   // never shows as unread while the user is looking right at it.
@@ -424,6 +508,18 @@ function ChatAppInner() {
   if (dmReadKey && dmReadSignature !== syncedDmReadSignature) {
     setSyncedDmReadSignature(dmReadSignature);
     markRead(dmReadKey);
+  }
+
+  // Restores a never-sent draft when opening (or switching to) a DM thread.
+  const [draftLoadedForThread, setDraftLoadedForThread] = useState<string | null>(null);
+  if (userId && activeDmThreadId && activeDmThreadId !== draftLoadedForThread) {
+    setDraftLoadedForThread(activeDmThreadId);
+    setDmDraft(loadDmDraft(userId, activeDmThreadId));
+  }
+
+  function updateDmDraft(text: string) {
+    setDmDraft(text);
+    if (userId && activeDmThreadId) saveDmDraft(userId, activeDmThreadId, text);
   }
 
   // Group chat: load history + subscribe to realtime inserts/updates.
@@ -513,6 +609,37 @@ function ChatAppInner() {
     };
   }, [activeSailing, userId, supabase]);
 
+  // Unread count per joined sailing, for the chip row's badges - covers
+  // every sailing, not just the active one, so switching chips doesn't
+  // require a round trip just to find out what's waiting elsewhere.
+  // Refetches on any group/DM insert anywhere (RLS scopes what actually
+  // arrives) rather than just the active sailing's channel above.
+  useEffect(() => {
+    if (!userId || mySailings.length === 0) return;
+    const myId = userId;
+    let cancelled = false;
+
+    function refreshAll() {
+      Promise.all(
+        mySailings.map(async (s) => [s.id, await fetchSailingUnreadCount(supabase, s.id, myId, readMap)] as const)
+      ).then((entries) => {
+        if (!cancelled) setSailingUnread(Object.fromEntries(entries));
+      });
+    }
+    refreshAll();
+
+    const channel = supabase
+      .channel(`chat-sailing-unread:${userId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "group_messages" }, refreshAll)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "dm_messages" }, refreshAll)
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [mySailings, userId, readMap, supabase]);
+
   // Deep link from a passenger card: /chat?with=<otherUserId>&sailing=<sailingId>
   // This is a one-shot action keyed by deepLinkHandled, not an ongoing subscription,
   // so it deliberately runs to completion even if a StrictMode dev double-invoke
@@ -534,7 +661,7 @@ function ChatAppInner() {
       setMobileShowingThread(true);
       router.replace("/chat");
     })();
-  }, [searchParams, userId, activeSailingId, supabase, router]);
+  }, [searchParams, userId, activeSailingId, supabase, router, setActiveSailingId]);
 
   // Active DM thread: load history + subscribe to realtime inserts/updates.
   useEffect(() => {
@@ -590,6 +717,13 @@ function ChatAppInner() {
     };
   }, [activeDmThreadId, supabase, userId]);
 
+  // Keeps the active sailing chip in view when it's selected (including the
+  // initial default selection), so a chip picked from off-screen doesn't
+  // leave the user wondering which one is active.
+  useEffect(() => {
+    activeChipRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [activeSailingId]);
+
   function selectSailing(id: string) {
     setActiveSailingId(id);
     setPane({ type: "group" });
@@ -632,6 +766,7 @@ function ChatAppInner() {
     const text = dmDraft.trim();
     if (!text || !activeDmThreadId || !userId || !activeSailing) return;
     setDmDraft("");
+    saveDmDraft(userId, activeDmThreadId, "");
     await supabase.from("dm_messages").insert({
       thread_id: activeDmThreadId,
       sender_id: userId,
@@ -706,111 +841,150 @@ function ChatAppInner() {
           mobileShowingThread ? "hidden" : "flex"
         }`}
       >
-        <div className="border-b border-border px-3.5 pb-2 pt-2.5">
-          <div className="mb-0.5 font-display text-[13px] font-bold">Messages</div>
-          <div className="text-[11px] text-muted-2">
-            {mySailings.length > 1 ? "Pick a sailing to see its chats" : "Your sailing"}
-          </div>
-          {mySailings.length > 1 ? (
-            <div className="mt-2.5 flex max-h-[170px] flex-col gap-2 overflow-y-auto">
-              {mySailings.map((s) => {
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-[#f3fbfb] px-4 py-3.5">
+          <div className="font-display text-[20px] font-bold text-charcoal">Messages</div>
+          <Link
+            href={`/sailing/${activeSailing.id}/board`}
+            className="shrink-0 font-sans text-xs font-semibold text-teal"
+          >
+            ＋ New
+          </Link>
+        </div>
+
+        {orderedSailings.length > 1 ? (
+          <div className="relative shrink-0 border-b border-border bg-[#f3fbfb]">
+            <div
+              ref={chipRowRef}
+              className="flex gap-1.75 overflow-x-auto px-3.5 py-2.75 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              {orderedSailings.map((s) => {
                 const active = s.id === activeSailing.id;
+                const count = sailingUnread?.[s.id] ?? 0;
                 return (
                   <button
                     key={s.id}
+                    ref={active ? activeChipRef : null}
                     type="button"
                     onClick={() => selectSailing(s.id)}
-                    className={`flex shrink-0 items-center gap-2 rounded-[14px] px-3 py-2.5 text-left font-sans transition-colors ${
-                      active
-                        ? "border-[1.5px] border-teal bg-teal text-white"
-                        : "border-[1.5px] border-[#cfe6e8] bg-white text-[#3a5a5f]"
+                    className={`shrink-0 whitespace-nowrap rounded-full px-3.25 py-1.75 font-sans text-[12.5px] font-bold transition-colors ${
+                      active ? "bg-teal text-white" : "border border-[#d8ebec] bg-white text-[#4c6d72] font-semibold"
                     }`}
                   >
-                    <span className="text-base">🚢</span>
-                    <span className="leading-[1.15]">
-                      <span className="block text-[12.5px] font-bold">{s.shipName}</span>
-                      <span className={`text-[10.5px] ${active ? "opacity-85" : "text-[#8aa6aa]"}`}>
-                        {shortDate(s.date)}
-                      </span>
-                    </span>
+                    {shortLabels.get(s.id) ?? s.shipName}
+                    {count > 0 ? (
+                      <span className={active ? "ml-1 opacity-70" : "ml-1 text-coral"}>{count > 9 ? "9+" : count}</span>
+                    ) : null}
                   </button>
                 );
               })}
             </div>
-          ) : null}
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-2">
-          <div className="px-2.5 pb-1.5 pt-2.5 text-[11px] font-semibold uppercase tracking-[.08em] text-muted-2">
-            Group chat
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-l from-[#f3fbfb] to-transparent"
+            />
           </div>
-          <div
+        ) : null}
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">
+            EVERYONE ON THIS SAILING
+          </div>
+          <button
+            type="button"
             onClick={openGroupPane}
-            className="relative mx-0.5 mb-1.5 cursor-pointer rounded-2xl p-3.5 text-white shadow-[0_10px_22px_rgba(14,140,153,.3)]"
-            style={{ background: "linear-gradient(135deg,#0E8C99,#0a6f7a)" }}
+            className={`flex w-full items-center gap-3 px-3.5 pb-3.5 text-left transition-colors hover:bg-input ${
+              pane.type === "group" ? "bg-input" : ""
+            }`}
           >
-            {groupUnread ? (
-              <span
-                className="absolute top-2.5 right-2.5 h-2.5 w-2.5 rounded-full bg-coral ring-2 ring-white/40"
-                aria-label="Unread group messages"
-              />
-            ) : null}
-            <div className="flex items-center gap-2.5">
-              <span className="text-xl">⛴️</span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate font-display text-[15px] font-bold">
-                  {itinName(activeSailing.itinerary)}
-                </div>
-                <div className="mt-0.5 text-[11px] font-medium opacity-85">
-                  Group chat · {travelerCount} travelers
-                </div>
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-[#dff1f2] text-[23px]">
+              🚢
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15.5px] font-bold leading-[1.25] text-charcoal">
+                {activeSailing.shipName}
+              </div>
+              <div className="mt-px truncate text-[11px] font-semibold text-teal">
+                {activeSailing.date} · from {activeSailing.port}
+              </div>
+              <div className="mt-0.5 truncate text-[12.5px] text-[#6f9297]">
+                {lastRealGroupMsg
+                  ? lastRealGroupMsg.deleted
+                    ? "Message removed"
+                    : `${lastRealGroupMsg.sender}: ${lastRealGroupMsg.body}`
+                  : `Group chat · ${travelerCount} travelers`}
               </div>
             </div>
-          </div>
+            <div className="shrink-0 self-start text-right">
+              <div className="text-[11px] text-[#9db4b7]">
+                {lastRealGroupMsg?.atMs ? chatListTimeLabel(lastRealGroupMsg.atMs) : ""}
+              </div>
+              {groupUnreadCount > 0 ? (
+                <div className="mt-1 inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-coral px-[5px] text-[10.5px] font-bold text-white">
+                  {groupUnreadCount > 9 ? "9+" : groupUnreadCount}
+                </div>
+              ) : null}
+            </div>
+          </button>
 
-          <div className="mt-3 px-2.5 pb-1.5 text-[11px] font-semibold uppercase tracking-[.08em] text-[#b7c9cb]">
-            Direct messages
-          </div>
+          <div className="mx-3.5 h-px bg-[#eef4f4]" />
+
           {dmThreads.length === 0 ? (
-            <div className="px-2.5 py-2 text-xs text-muted-2">
-              Message a fellow traveler from the passenger board to start a conversation.
+            <div className="px-3.5 py-4 text-center text-xs leading-relaxed text-muted-2">
+              Nobody messaged yet.{" "}
+              <Link href={`/sailing/${activeSailing.id}/board`} className="font-semibold text-teal">
+                Browse passengers
+              </Link>{" "}
+              to start a private chat.
             </div>
-          ) : null}
-          {dmThreads.map((t) => {
-            const unread = !t.lastMessageMine && t.lastMessageAtMs > (readMap[`dm:${t.id}`] ?? 0);
-            return (
-              <div
-                key={t.id}
-                onClick={() => openDm(t.id)}
-                className={`mb-0.5 flex cursor-pointer items-center gap-2.5 rounded-[10px] p-2.5 transition-colors hover:bg-input ${
-                  pane.type === "dm" && pane.id === t.id ? "border-l-2 border-teal bg-input" : ""
-                }`}
-              >
-                <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#f2f7f7] text-sm">
-                  {t.avatar}
-                  {unread ? (
-                    <span
-                      className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-coral ring-2 ring-white"
-                      aria-label="Unread messages"
-                    />
-                  ) : null}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="mb-0.5 flex items-center justify-between gap-2">
-                    <span className={`truncate text-[13px] text-charcoal ${unread ? "font-bold" : "font-semibold"}`}>
-                      {t.label}
-                    </span>
-                    <span className={`shrink-0 text-[11px] ${unread ? "font-semibold text-teal" : "text-muted-2"}`}>
-                      {t.timeLabel}
-                    </span>
-                  </div>
-                  <div className={`truncate text-xs ${unread ? "font-semibold text-charcoal" : "text-[#5f8288]"}`}>
-                    {t.preview}
-                  </div>
-                </div>
+          ) : (
+            <>
+              <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">
+                PRIVATE · {dmThreads.length}
               </div>
-            );
-          })}
+              {dmThreads.map((t) => {
+                const unread = !t.lastMessageMine && t.lastMessageAtMs > (readMap[`dm:${t.id}`] ?? 0);
+                const draft = userId ? loadDmDraft(userId, t.id) : "";
+                const showDraft = t.lastMessageAtMs === 0 && !!draft;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => openDm(t.id)}
+                    className={`flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-input ${
+                      pane.type === "dm" && pane.id === t.id ? "bg-input" : ""
+                    }`}
+                  >
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f2f7f7] text-[23px]">
+                      {t.avatar}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 truncate text-[15.5px] font-bold leading-[1.25] text-charcoal">
+                        <span className="truncate">{t.label}</span>
+                        {t.anon ? (
+                          <span className="shrink-0 rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
+                            Anon
+                          </span>
+                        ) : null}
+                      </div>
+                      <div
+                        className={`mt-0.5 truncate text-[12.5px] ${showDraft ? "italic text-[#9db4b7]" : "text-[#6f9297]"}`}
+                      >
+                        {showDraft ? `Draft · ${draft}` : t.preview}
+                      </div>
+                    </div>
+                    <div className="shrink-0 self-start text-right">
+                      <div className="text-[11px] text-[#9db4b7]">{t.timeLabel}</div>
+                      {unread ? (
+                        <div className="mt-1 inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-coral px-[5px] text-[10.5px] font-bold text-white">
+                          1
+                        </div>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </>
+          )}
         </div>
       </div>
 
@@ -829,10 +1003,10 @@ function ChatAppInner() {
               </button>
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-bold text-charcoal">
-                  🚢 {itinName(activeSailing.itinerary)}
+                  🚢 {activeSailing.shipName}
                 </div>
-                <div className="text-xs text-muted-2">
-                  {travelerCount} travelers · {activeSailing.shipName}, {shortDate(activeSailing.date)}
+                <div className="truncate text-xs text-muted-2">
+                  {activeSailing.date} · from {activeSailing.port} · {travelerCount} travelers
                 </div>
               </div>
             </div>
@@ -911,9 +1085,7 @@ function ChatAppInner() {
                 <div className="truncate text-[13px] font-bold text-charcoal">
                   {activeThread?.label ?? "Conversation"}
                 </div>
-                <div className="text-xs text-muted-2">
-                  {activeSailing.shipName}, {shortDate(activeSailing.date)}
-                </div>
+                <div className="text-xs text-muted-2">{shortLabels.get(activeSailing.id) ?? activeSailing.shipName}</div>
               </div>
             </div>
             <button
@@ -947,7 +1119,7 @@ function ChatAppInner() {
             <div className="flex items-end gap-2.5">
               <textarea
                 value={dmDraft}
-                onChange={(e) => setDmDraft(e.target.value)}
+                onChange={(e) => updateDmDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();
