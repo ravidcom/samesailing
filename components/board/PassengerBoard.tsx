@@ -135,6 +135,12 @@ export default function PassengerBoard({
   const list = lgbtqScoped.filter((p) => filter === "all" || p.t === filter);
   const sheetPassenger = fullList.find((p) => p.id === profileSheetId) ?? null;
 
+  // "All" always leads; the four party types after it sort by count (most
+  // first) so whichever ones actually have people aboard aren't buried past
+  // several zero-count, disabled chips.
+  const [allFilter, ...partyFilters] = FILTERS;
+  const orderedFilters = [allFilter, ...[...partyFilters].sort((a, b) => countFor(b.id) - countFor(a.id))];
+
   function openEditFromSheet() {
     setProfileSheetId(null);
     setEditOpen(true);
@@ -146,7 +152,7 @@ export default function PassengerBoard({
         <div className="mx-auto max-w-[1000px]">
           <div className="relative">
             <div className="flex items-center gap-1.75 overflow-x-auto py-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {FILTERS.map((f) => {
+              {orderedFilters.map((f) => {
                 const count = countFor(f.id);
                 const active = filter === f.id;
                 const disabled = count === 0 && !active;
