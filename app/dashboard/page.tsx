@@ -3,7 +3,6 @@
 import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import SailingCard from "@/components/dashboard/SailingCard";
-import NotificationSettings from "@/components/dashboard/NotificationSettings";
 import NotificationLog from "@/components/dashboard/NotificationLog";
 import { useAuth } from "@/lib/auth-context";
 
@@ -85,7 +84,6 @@ export default function DashboardPage() {
         </Link>
 
         <NotificationLog />
-        <NotificationSettings />
       </main>
     </>
   );

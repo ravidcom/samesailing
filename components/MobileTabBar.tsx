@@ -62,7 +62,7 @@ export default function MobileTabBar() {
   const passengersHref = mySailings.length > 0 ? `/sailing/${mySailings[0].id}/board` : "/dashboard";
 
   const tabs = [
-    { key: "sailings", label: "Sailings", href: "/dashboard", Icon: ShipIcon, active: pathname === "/dashboard", badgeCount: 0 },
+    { key: "sailings", label: "My Sailings", href: "/dashboard", Icon: ShipIcon, active: pathname === "/dashboard", badgeCount: 0 },
     { key: "passengers", label: "Passengers", href: passengersHref, Icon: PeopleIcon, active: pathname.endsWith("/board"), badgeCount: 0 },
     { key: "chat", label: "Chat", href: "/chat", Icon: ChatIcon, active: pathname === "/chat", badgeCount: unreadCount },
     { key: "profile", label: "Profile", href: "/profile", Icon: ProfileIcon, active: pathname === "/profile", badgeCount: 0 },
