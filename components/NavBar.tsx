@@ -24,7 +24,7 @@ export default function NavBar() {
       <div className="flex items-center gap-1 md:gap-[5px]">
         {loading ? null : loggedIn ? (
           <>
-            <span className="hidden text-[13px] font-medium text-muted md:inline">
+            <span className="max-w-[90px] truncate text-[13px] font-medium text-muted md:max-w-none">
               {user?.name}
             </span>
             {mySailings.length > 0 ? (

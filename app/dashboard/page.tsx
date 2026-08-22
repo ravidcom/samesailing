@@ -8,7 +8,7 @@ import NotificationLog from "@/components/dashboard/NotificationLog";
 import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardPage() {
-  const { loading, loggedIn, user, country, mySailings } = useAuth();
+  const { loading, loggedIn, mySailings } = useAuth();
 
   if (loading) {
     return (
@@ -48,28 +48,16 @@ export default function DashboardPage() {
     <>
       <NavBar />
       <main className="mx-auto max-w-[820px] px-4 pt-[100px] pb-16">
-        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-[54px] w-[54px] items-center justify-center rounded-full bg-teal-tint text-2xl text-teal">
-              {user?.avatar ?? "😊"}
-            </div>
-            <div>
-              <h1 className="font-display text-xl font-bold text-charcoal">{user?.name}</h1>
-              <p className="text-sm text-muted-2">
-                {user?.email}
-                {country ? ` · ${country}` : ""}
-              </p>
-            </div>
-          </div>
+        <div className="mb-6 flex items-center justify-between gap-3">
+          <h1 className="font-display text-xl font-bold text-charcoal">My cruises</h1>
           <Link
-            href="/profile"
-            className="rounded-xl border-[1.5px] border-border px-4 py-2 font-sans text-sm font-medium text-muted transition-colors hover:border-teal hover:text-teal"
+            href="/"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-teal px-4 py-2 font-sans text-sm font-semibold text-white transition-colors hover:bg-teal-dark"
           >
-            ✏️ Edit profile
+            ＋ Add a new sailing
           </Link>
         </div>
 
-        <h2 className="mb-3 font-display text-lg font-bold text-charcoal">My cruises</h2>
         {mySailings.length === 0 ? (
           <div className="rounded-[16px] border-[1.5px] border-dashed border-border bg-input px-6 py-8 text-center text-sm text-muted">
             You haven&apos;t joined a sailing yet.{" "}
