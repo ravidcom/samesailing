@@ -17,6 +17,8 @@ export type Passenger = {
   bio: string;
   lgbtq: boolean;
   kids: { gender: string; age: string }[];
+  /** Pioneer badge rank on this sailing (1-10), assigned at join time. Null past slot 10. */
+  joinRank: number | null;
 };
 
 const AVATAR_BG: Record<PartyType, string> = {
@@ -30,7 +32,8 @@ const AVATAR_BG: Record<PartyType, string> = {
 export function passengerFromProfile(
   id: string,
   profile: OnboardingProfile,
-  nameFields?: NameFields | null
+  nameFields?: NameFields | null,
+  joinRank: number | null = null
 ): Passenger {
   const { name, anon } = resolveDisplayName(id, profile.partyType, nameFields);
   return {
@@ -48,5 +51,6 @@ export function passengerFromProfile(
     // Older rows stored before this field existed won't have it.
     lgbtq: profile.lgbtq ?? false,
     kids: profile.kids,
+    joinRank,
   };
 }

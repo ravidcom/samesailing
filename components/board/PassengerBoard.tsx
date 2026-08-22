@@ -11,6 +11,8 @@ import PrideStripe from "@/components/ui/PrideStripe";
 import Toggle from "@/components/ui/Toggle";
 import Modal from "@/components/ui/Modal";
 import EditSailingProfileModal from "@/components/dashboard/EditSailingProfileModal";
+import { CornerRibbon, BadgeExplainer } from "@/components/ui/PioneerBadge";
+import { badgeForRank, CREW_CARD_BORDER } from "@/lib/pioneer";
 
 const FILTERS: { id: "all" | PartyType; label: string }[] = [
   { id: "all", label: "All" },
@@ -113,6 +115,7 @@ export default function PassengerBoard({
   }
   const [profileSheetId, setProfileSheetId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [openBadgeId, setOpenBadgeId] = useState<string | null>(null);
   const hasJoined = mySailings.some((s) => s.id === sailingId);
   const mySailing = mySailings.find((s) => s.id === sailingId);
 
@@ -132,7 +135,16 @@ export default function PassengerBoard({
   const countFor = (id: "all" | PartyType) =>
     id === "all" ? lgbtqScoped.length : lgbtqScoped.filter((p) => p.t === id).length;
   const lgbtqAboardCount = partyScoped.filter((p) => p.lgbtq).length;
-  const list = lgbtqScoped.filter((p) => filter === "all" || p.t === filter);
+  // Badged travelers (join ranks 1-10) sort above everyone else, in join
+  // order; unbadged passengers keep their existing relative order.
+  const list = lgbtqScoped
+    .filter((p) => filter === "all" || p.t === filter)
+    .sort((a, b) => {
+      if (a.joinRank && b.joinRank) return a.joinRank - b.joinRank;
+      if (a.joinRank) return -1;
+      if (b.joinRank) return 1;
+      return 0;
+    });
   const sheetPassenger = fullList.find((p) => p.id === profileSheetId) ?? null;
 
   // "All" always leads; the four party types after it sort by count (most
@@ -199,6 +211,8 @@ export default function PassengerBoard({
             {list.map((p) => {
               const isMe = p.id === userId;
               const cue = isMe ? { text: "This is how others see you", hasMatch: false } : matchCue(me, p);
+              const badge = badgeForRank(p.joinRank);
+              const frameColor = badge ? (badge.tier === "crew" ? CREW_CARD_BORDER : badge.frame) : undefined;
 
               return (
                 <div
@@ -209,16 +223,29 @@ export default function PassengerBoard({
                   onKeyDown={(e) => {
                     if (e.key === "Enter" || e.key === " ") setProfileSheetId(p.id);
                   }}
-                  className="cursor-pointer rounded-[20px] border border-[#e3efef] bg-white p-[17px] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(42,32,28,.1)]"
+                  style={badge ? { borderTop: `3px solid ${frameColor}` } : undefined}
+                  className="relative cursor-pointer overflow-hidden rounded-[20px] border border-[#e3efef] bg-white p-[17px] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(42,32,28,.1)]"
                 >
-                  <div className="flex items-center gap-3">
+                  {badge ? (
+                    <CornerRibbon
+                      badge={badge}
+                      onToggle={(e) => {
+                        e.stopPropagation();
+                        setOpenBadgeId((id) => (id === p.id ? null : p.id));
+                      }}
+                    />
+                  ) : null}
+                  <div className={`flex items-center gap-3 ${badge ? "mt-4" : ""}`}>
                     <div
                       className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[23px]"
-                      style={{ background: p.avBg }}
+                      style={{
+                        background: p.avBg,
+                        boxShadow: badge && badge.tier !== "crew" ? `0 0 0 2.5px ${badge.frame}` : undefined,
+                      }}
                     >
                       {p.av}
                     </div>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1" style={badge ? { paddingRight: badge.cardPaddingRightPx } : undefined}>
                       <NameSubtitle p={p} />
                     </div>
                     {isMe ? (
@@ -244,6 +271,8 @@ export default function PassengerBoard({
                       </Link>
                     )}
                   </div>
+
+                  {badge ? <BadgeExplainer badge={badge} show={openBadgeId === p.id} /> : null}
 
                   <MatchLine cue={cue} />
 

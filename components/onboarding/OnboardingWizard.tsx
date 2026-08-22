@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth, type JoinedSailing, type PartyType } from "@/lib/auth-context";
+import { useAuth, type NewSailingJoin, type PartyType } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 import type { SailingInfo } from "@/lib/cruiseData";
 import { emptyFormData, type OnboardingFormData } from "./types";
@@ -128,7 +128,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     if (oauthError) setError(oauthError.message);
   }
 
-  function buildJoinedSailing(): JoinedSailing | null {
+  function buildJoinedSailing(): NewSailingJoin | null {
     if (!sailing) return null;
     const partyType = data.partyType as PartyType;
     const avatar = partyType === "solo" ? soloIcon(data.gender) : PARTY_AVATARS[partyType] ?? "🧑";

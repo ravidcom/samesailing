@@ -41,6 +41,9 @@ create policy "Users can update their own profile"
   using (auth.uid() = id);
 
 -- A user's membership in a given sailing, plus their per-sailing travel profile.
+-- join_rank backs the Pioneer badge system: 1st/2nd/3rd/Early crew (4-10) on
+-- a sailing, assigned once at join time by the trigger below and never
+-- recomputed - if #2 leaves, #3 stays 3rd.
 create table if not exists joined_sailings (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -51,6 +54,7 @@ create table if not exists joined_sailings (
   itinerary text not null,
   port text not null,
   profile jsonb,
+  join_rank integer,
   joined_at timestamptz not null default now(),
   unique (user_id, sailing_id)
 );
@@ -79,6 +83,28 @@ create policy "Users can update their own sailing profile"
 create policy "Users can leave a sailing"
   on joined_sailings for delete
   using (auth.uid() = user_id);
+
+-- Assigns join_rank on first insert only. joinSailing() upserts on
+-- (user_id, sailing_id) conflict, and an ON CONFLICT DO UPDATE never fires a
+-- BEFORE INSERT trigger - so re-joining a sailing already on the account
+-- (or saving a profile edit) leaves an existing join_rank untouched, exactly
+-- as the badge system requires.
+create or replace function set_join_rank()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  new.join_rank := (select count(*) + 1 from joined_sailings where sailing_id = new.sailing_id);
+  return new;
+end;
+$$;
+
+drop trigger if exists joined_sailings_set_join_rank on joined_sailings;
+create trigger joined_sailings_set_join_rank
+  before insert on joined_sailings
+  for each row execute function set_join_rank();
 
 -- Real, persisted group chat messages per sailing. Readable/writable by anyone
 -- who has joined that sailing (checked against joined_sailings above).
