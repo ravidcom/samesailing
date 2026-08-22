@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, type NewSailingJoin, type PartyType } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
 import type { SailingInfo } from "@/lib/cruiseData";
+import { primaryButton, backLink } from "@/lib/formStyles";
 import { emptyFormData, type OnboardingFormData } from "./types";
 import StepAccount from "./StepAccount";
 import StepProfile from "./StepProfile";
@@ -201,6 +203,34 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
   }
 
   const sailingLabel = sailing ? `${sailing.shipName} · ${sailing.date}` : null;
+
+  // Already a member of this sailing - joining again would just overwrite
+  // the existing profile row, so stop before the wizard rather than making
+  // someone fill out four steps only to be told "already joined" at the end.
+  const alreadyJoined = auth.loggedIn && sailing && auth.mySailings.some((s) => s.id === sailing.id);
+  if (alreadyJoined) {
+    return (
+      <div className="mx-auto w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white px-[30px] py-10 text-center shadow-[0_20px_50px_rgba(42,32,28,.08)]">
+        <div className="mx-auto mb-[18px] flex h-16 w-16 items-center justify-center rounded-full bg-teal-tint text-[28px]">
+          ⚓
+        </div>
+        <div className="mb-2.5 font-display text-2xl font-bold text-charcoal">
+          You&apos;ve already joined this sailing
+        </div>
+        {sailingLabel ? (
+          <div className="mb-6 inline-block rounded-full border border-[#b9e5e8] bg-teal-tint px-4 py-1.5 text-xs font-semibold text-teal">
+            {sailingLabel}
+          </div>
+        ) : null}
+        <Link href={`/sailing/${sailing.id}/board`} className={primaryButton + " block text-center"}>
+          View the passenger board →
+        </Link>
+        <Link href="/dashboard" className={backLink + " block text-center"}>
+          Go to my dashboard
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white shadow-[0_20px_50px_rgba(42,32,28,.08)]">
