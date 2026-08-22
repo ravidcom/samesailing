@@ -289,33 +289,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function joinSailing(sailing: NewSailingJoin) {
     if (!authUser) return { error: "You need to be signed in to join a sailing." };
-    // Re-joining a sailing already on the account (e.g. clicking an old
-    // join link again) is an update, not a new addition — don't count it
-    // against the per-ship/total limits.
-    const alreadyJoined = mySailings.some((s) => s.id === sailing.id);
-    if (!alreadyJoined) {
-      const sameShipCount = mySailings.filter((s) => s.shipName === sailing.shipName).length;
-      if (sameShipCount >= 2) {
-        return { error: `You've already joined 2 sailings on ${sailing.shipName} — that's the limit per ship.` };
-      }
-      if (mySailings.length >= 5) {
-        return { error: "You've reached the limit of 5 joined sailings. Leave one to add another." };
-      }
+    // A sailing already on the account can't be joined again - that would
+    // either silently overwrite the existing row's profile or (if it ever
+    // did fire the insert trigger) hand out a second, later join_rank for
+    // the same person. Tell them instead of quietly no-oping.
+    if (mySailings.some((s) => s.id === sailing.id)) {
+      return { error: "You've already joined this sailing." };
     }
-    const { error } = await supabase.from("joined_sailings").upsert(
-      {
-        user_id: authUser.id,
-        sailing_id: sailing.id,
-        line: sailing.line,
-        ship_name: sailing.shipName,
-        sail_date: sailing.date,
-        itinerary: sailing.itinerary,
-        port: sailing.port,
-        profile: sailing.profile,
-      },
-      { onConflict: "user_id,sailing_id" }
-    );
-    if (error) return { error: error.message };
+    const sameShipCount = mySailings.filter((s) => s.shipName === sailing.shipName).length;
+    if (sameShipCount >= 2) {
+      return { error: `You've already joined 2 sailings on ${sailing.shipName} — that's the limit per ship.` };
+    }
+    if (mySailings.length >= 5) {
+      return { error: "You've reached the limit of 5 joined sailings. Leave one to add another." };
+    }
+    // A plain insert, not an upsert - mySailings already ruled out an
+    // existing row above, and letting the table's own (user_id, sailing_id)
+    // unique constraint reject a genuine race (e.g. a second tab joining at
+    // the same moment) is safer than upsert quietly overwriting it.
+    const { error } = await supabase.from("joined_sailings").insert({
+      user_id: authUser.id,
+      sailing_id: sailing.id,
+      line: sailing.line,
+      ship_name: sailing.shipName,
+      sail_date: sailing.date,
+      itinerary: sailing.itinerary,
+      port: sailing.port,
+      profile: sailing.profile,
+    });
+    if (error) {
+      return { error: error.code === "23505" ? "You've already joined this sailing." : error.message };
+    }
     await loadUserData(authUser.id);
     return {};
   }
