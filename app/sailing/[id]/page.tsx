@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import NavBar from "@/components/NavBar";
 import { getSailingById, memberCount, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
+import { scarcityState } from "@/lib/pioneer";
+import FoundingBadgeTiles from "@/components/board/FoundingBadgeTiles";
 
 export default async function SailingResultPage({
   params,
@@ -66,8 +68,33 @@ export default async function SailingResultPage({
             <p className="mb-6 text-sm leading-relaxed text-muted">
               {dense
                 ? `Connect with ${n} travelers already on this exact sailing - before you even board. Group chat, private messages, and excursion planning all in one place.`
-                : "Be among the first aboard! Join now and we'll email you as shipmates join. Founding members appear first when this sailing fills up."}
+                : "Be among the first aboard. The first three travelers to join this sailing earn a medal frame on their passenger card, and the next seven come aboard as Early crew."}
             </p>
+
+            {!dense ? (
+              <>
+                <div className="mb-4">
+                  <FoundingBadgeTiles />
+                </div>
+                <p className="mb-4 text-[13px] leading-relaxed text-muted-2">
+                  Badged travelers sit at the top of the passenger board, and we email you as each new shipmate joins.
+                </p>
+                {(() => {
+                  const scarcity = scarcityState(n);
+                  return (
+                    <div
+                      style={{ background: scarcity.bg, border: `1px solid ${scarcity.border}` }}
+                      className="mb-6 flex items-center gap-2 rounded-xl px-3.5 py-3"
+                    >
+                      <span className="shrink-0 text-[15px]">🔥</span>
+                      <span style={{ color: scarcity.color }} className="text-[13px] leading-snug font-semibold">
+                        {scarcity.text}
+                      </span>
+                    </div>
+                  );
+                })()}
+              </>
+            ) : null}
 
             <Link
               href={`/join/${sailing.id}`}

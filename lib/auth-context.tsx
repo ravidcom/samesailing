@@ -35,7 +35,13 @@ export type JoinedSailing = {
   itinerary: string;
   port: string;
   profile: OnboardingProfile | null;
+  /** Pioneer badge rank on this sailing (1-10), assigned at join time. Null past slot 10. */
+  joinRank: number | null;
 };
+
+/** What the client sends to join a sailing - join_rank isn't known until the
+ * insert's trigger assigns it, so it can't be part of an outgoing request. */
+export type NewSailingJoin = Omit<JoinedSailing, "joinRank">;
 
 export type AuthUser = { name: string; email: string; avatar: string };
 
@@ -45,7 +51,7 @@ type SignUpInput = {
   password: string;
   avatar: string;
   country: string;
-  sailing: JoinedSailing | null;
+  sailing: NewSailingJoin | null;
   nameMode?: NameMode;
   nickname?: string;
 };
@@ -72,7 +78,7 @@ type AuthContextValue = {
   refreshUserData: (userId: string) => Promise<void>;
   completeSignUp: (input: SignUpInput) => Promise<{ error?: string }>;
   logIn: (email: string, password: string) => Promise<{ error?: string }>;
-  joinSailing: (sailing: JoinedSailing) => Promise<{ error?: string }>;
+  joinSailing: (sailing: NewSailingJoin) => Promise<{ error?: string }>;
   updateSailingProfile: (sailingId: string, profile: OnboardingProfile) => Promise<{ error?: string }>;
   removeSailing: (sailingId: string) => Promise<void>;
   updateAccount: (patch: { nameMode?: NameMode; nickname?: string }) => Promise<void>;
@@ -103,6 +109,7 @@ type JoinedSailingRow = {
   itinerary: string;
   port: string;
   profile: OnboardingProfile | null;
+  join_rank: number | null;
 };
 
 function chatSeenKey(userId: string) {
@@ -124,6 +131,7 @@ function rowToSailing(row: JoinedSailingRow): JoinedSailing {
     itinerary: row.itinerary,
     port: row.port,
     profile: row.profile,
+    joinRank: row.join_rank,
   };
 }
 
@@ -144,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .maybeSingle(),
       supabase
         .from("joined_sailings")
-        .select("sailing_id,line,ship_name,sail_date,itinerary,port,profile")
+        .select("sailing_id,line,ship_name,sail_date,itinerary,port,profile,join_rank")
         .eq("user_id", userId),
     ]);
     setProfile(profileRow ?? null);
@@ -279,7 +287,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {};
   }
 
-  async function joinSailing(sailing: JoinedSailing) {
+  async function joinSailing(sailing: NewSailingJoin) {
     if (!authUser) return { error: "You need to be signed in to join a sailing." };
     // Re-joining a sailing already on the account (e.g. clicking an old
     // join link again) is an update, not a new addition — don't count it

@@ -11,6 +11,8 @@ import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
 import { GROUP_SEED_MESSAGES, formatTimeLabel, chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
 import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
+import { badgeForRank, type Badge } from "@/lib/pioneer";
+import { CompactBadge } from "@/components/ui/PioneerBadge";
 
 type GroupMessageRow = {
   id: string;
@@ -37,6 +39,7 @@ type DmThreadSummary = {
   otherUserId: string;
   label: string;
   anon: boolean;
+  joinRank: number | null;
   avatar: string;
   preview: string;
   timeLabel: string;
@@ -54,6 +57,7 @@ function rowToGroupMessage(row: GroupMessageRow, myUserId: string | null): ChatM
     ts: formatTimeLabel(new Date(row.created_at)),
     deleted: row.deleted,
     atMs: new Date(row.created_at).getTime(),
+    userId: row.user_id,
   };
 }
 
@@ -104,7 +108,11 @@ async function fetchDmThreads(
   const threadIds = threads.map((t) => t.id);
 
   const [{ data: profiles }, { data: nameRows }, { data: lastMsgs }] = await Promise.all([
-    supabase.from("joined_sailings").select("user_id,profile").eq("sailing_id", sailingId).in("user_id", otherIds),
+    supabase
+      .from("joined_sailings")
+      .select("user_id,profile,join_rank")
+      .eq("sailing_id", sailingId)
+      .in("user_id", otherIds),
     supabase.from("profiles").select("id,name,name_mode,nickname").in("id", otherIds),
     supabase
       .from("dm_messages")
@@ -116,6 +124,7 @@ async function fetchDmThreads(
   const profileByUser = new Map<string, OnboardingProfile | null>(
     (profiles ?? []).map((p) => [p.user_id, p.profile as OnboardingProfile | null])
   );
+  const joinRankByUser = new Map<string, number | null>((profiles ?? []).map((p) => [p.user_id, p.join_rank]));
   const nameFieldsByUser = new Map(
     (nameRows ?? []).map((r) => [
       r.id,
@@ -138,6 +147,7 @@ async function fetchDmThreads(
         otherUserId: otherId,
         label: resolved.name,
         anon: resolved.anon,
+        joinRank: joinRankByUser.get(otherId) ?? null,
         avatar: profile?.avatar ?? "🙂",
         preview: last ? (last.deleted ? "Message removed" : last.body) : "Say hello!",
         timeLabel: last ? chatListTimeLabel(new Date(last.created_at).getTime()) : "",
@@ -206,10 +216,12 @@ function MessageBubble({
   msg,
   deletable,
   onDelete,
+  badge,
 }: {
   msg: ChatMessage;
   deletable?: boolean;
   onDelete?: (id: string) => void;
+  badge?: Badge | null;
 }) {
   if (msg.deleted) {
     return (
@@ -242,6 +254,7 @@ function MessageBubble({
           </button>
         ) : null}
         {msg.sender}
+        {badge ? <CompactBadge badge={badge} /> : null}
       </div>
       <div
         className={
@@ -382,6 +395,9 @@ function ChatAppInner() {
 
   const [realGroupMsgs, setRealGroupMsgs] = useState<ChatMessage[]>([]);
   const [groupDraft, setGroupDraft] = useState("");
+  // Pioneer badge rank per member of the active sailing, for the compact
+  // ribbon next to a group-chat sender's name.
+  const [memberJoinRanks, setMemberJoinRanks] = useState<Record<string, number | null>>({});
 
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
@@ -576,6 +592,26 @@ function ChatAppInner() {
       supabase.removeChannel(channel);
     };
   }, [activeSailing, supabase, userId]);
+
+  // Pioneer badge lookup for the active sailing's members, so group-chat
+  // sender lines can show a compact ribbon. Join order doesn't change once
+  // assigned, so a plain fetch on sailing switch is enough - no realtime
+  // subscription needed.
+  useEffect(() => {
+    if (!activeSailing) return;
+    let cancelled = false;
+    supabase
+      .from("joined_sailings")
+      .select("user_id,join_rank")
+      .eq("sailing_id", activeSailing.id)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setMemberJoinRanks(Object.fromEntries(data.map((r) => [r.user_id, r.join_rank])));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeSailing, supabase]);
 
   // Sidebar DM thread list for the active sailing — refetched on any DM
   // insert/update the user is a participant of (not just the currently-open
@@ -1017,7 +1053,12 @@ function ChatAppInner() {
               {groupMessages.map((m) => (
                 <div key={m.id} className="flex flex-col gap-3.5">
                   {m.day ? <DayDivider label={m.day} /> : null}
-                  <MessageBubble msg={m} deletable={realIds.has(m.id)} onDelete={deleteGroupMessage} />
+                  <MessageBubble
+                    msg={m}
+                    deletable={realIds.has(m.id)}
+                    onDelete={deleteGroupMessage}
+                    badge={m.userId ? badgeForRank(memberJoinRanks[m.userId]) : null}
+                  />
                 </div>
               ))}
             </div>
@@ -1076,8 +1117,12 @@ function ChatAppInner() {
                 ←
               </button>
               <div className="min-w-0">
-                <div className="truncate text-[13px] font-bold text-charcoal">
-                  {activeThread?.label ?? "Conversation"}
+                <div className="flex items-center gap-1.5 truncate text-[13px] font-bold text-charcoal">
+                  <span className="truncate">{activeThread?.label ?? "Conversation"}</span>
+                  {activeThread ? (() => {
+                    const badge = badgeForRank(activeThread.joinRank);
+                    return badge ? <CompactBadge badge={badge} /> : null;
+                  })() : null}
                 </div>
                 <div className="text-xs text-muted-2">{shortLabels.get(activeSailing.id) ?? activeSailing.shipName}</div>
               </div>

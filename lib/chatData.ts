@@ -8,6 +8,8 @@ export type ChatMessage = {
   deleted?: boolean;
   /** Epoch ms, used for unread comparisons. Absent on seed/demo messages. */
   atMs?: number;
+  /** The sender's account id, so the sender line can look up their Pioneer badge. Absent on seed/demo messages. */
+  userId?: string;
 };
 
 export const GROUP_SEED_MESSAGES: ChatMessage[] = [
