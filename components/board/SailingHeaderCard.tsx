@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -53,7 +53,20 @@ export default function SailingHeaderCard({
   const { mySailings } = useAuth();
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [shareMenuOpen, setShareMenuOpen] = useState(false);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!shareMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (shareMenuRef.current && !shareMenuRef.current.contains(e.target as Node)) {
+        setShareMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [shareMenuOpen]);
 
   const joined = mySailings.some((s) => s.id === sailingId);
   const ordered = [...mySailings].sort((a, b) => dateKey(a.id).localeCompare(dateKey(b.id)));
@@ -77,12 +90,43 @@ export default function SailingHeaderCard({
     else goTo(myIndex - 1);
   }
 
-  function shareSailing() {
-    if (typeof window === "undefined") return;
-    navigator.clipboard.writeText(window.location.href).then(() => {
+  const shareUrl = typeof window !== "undefined" ? window.location.href : "";
+  const shareText = `Join me on ${shipName} · ${dateLabel} — let's connect before we board!`;
+
+  async function handleShareClick() {
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: "Join me on SameSailing", text: shareText, url: shareUrl });
+      } catch {
+        // user dismissed the native share sheet — nothing to do
+      }
+      return;
+    }
+    setShareMenuOpen((open) => !open);
+  }
+
+  function copyLink() {
+    navigator.clipboard.writeText(shareUrl).then(() => {
       setCopied(true);
+      setShareMenuOpen(false);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  function shareWhatsApp() {
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(`${shareText} ${shareUrl}`)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+    setShareMenuOpen(false);
+  }
+
+  function shareEmail() {
+    window.location.href = `mailto:?subject=${encodeURIComponent(
+      "Join me on my cruise!"
+    )}&body=${encodeURIComponent(`${shareText}\n\n${shareUrl}`)}`;
+    setShareMenuOpen(false);
   }
 
   return (
@@ -142,14 +186,41 @@ export default function SailingHeaderCard({
               ⚓ Join this sailing
             </Link>
           )}
-          <button
-            type="button"
-            onClick={shareSailing}
-            aria-label="Share this sailing"
-            className="flex h-12 w-14 shrink-0 items-center justify-center rounded-[14px] bg-white/22"
-          >
-            {copied ? <span className="text-xs font-bold text-white">✓</span> : <ChainLinkIcon />}
-          </button>
+          <div className="relative shrink-0" ref={shareMenuRef}>
+            <button
+              type="button"
+              onClick={handleShareClick}
+              aria-label="Share this sailing"
+              className="flex h-12 w-14 items-center justify-center rounded-[14px] bg-white/22"
+            >
+              {copied ? <span className="text-xs font-bold text-white">✓</span> : <ChainLinkIcon />}
+            </button>
+            {shareMenuOpen ? (
+              <div className="absolute right-0 top-full z-20 mt-1.5 w-44 overflow-hidden rounded-[11px] border border-border bg-white py-1.5 text-left shadow-[0_8px_24px_rgba(0,0,0,.12)]">
+                <button
+                  type="button"
+                  onClick={copyLink}
+                  className="block w-full px-3.5 py-2 text-left font-sans text-xs text-charcoal transition-colors hover:bg-input"
+                >
+                  🔗 Copy link
+                </button>
+                <button
+                  type="button"
+                  onClick={shareWhatsApp}
+                  className="block w-full px-3.5 py-2 text-left font-sans text-xs text-charcoal transition-colors hover:bg-input"
+                >
+                  💬 WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={shareEmail}
+                  className="block w-full px-3.5 py-2 text-left font-sans text-xs text-charcoal transition-colors hover:bg-input"
+                >
+                  ✉️ Email
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
