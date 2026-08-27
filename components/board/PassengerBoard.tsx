@@ -11,6 +11,7 @@ import PrideStripe from "@/components/ui/PrideStripe";
 import Toggle from "@/components/ui/Toggle";
 import Modal from "@/components/ui/Modal";
 import EditSailingProfileModal from "@/components/dashboard/EditSailingProfileModal";
+import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
 import { CornerRibbon, BadgeExplainer } from "@/components/ui/PioneerBadge";
 import { badgeForRank, CREW_CARD_BORDER } from "@/lib/pioneer";
 
@@ -116,6 +117,7 @@ export default function PassengerBoard({
   const [profileSheetId, setProfileSheetId] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
   const [openBadgeId, setOpenBadgeId] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const hasJoined = mySailings.some((s) => s.id === sailingId);
   const mySailing = mySailings.find((s) => s.id === sailingId);
 
@@ -372,12 +374,25 @@ export default function PassengerBoard({
                   ✏️ Edit my profile
                 </button>
               ) : (
-                <Link
-                  href={loggedIn && hasJoined ? `/chat?with=${sheetPassenger.id}&sailing=${sailingId}` : `/join/${sailingId}`}
-                  className="block w-full rounded-[11px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
-                >
-                  ✉ Send private message
-                </Link>
+                <>
+                  <Link
+                    href={loggedIn && hasJoined ? `/chat?with=${sheetPassenger.id}&sailing=${sailingId}` : `/join/${sailingId}`}
+                    className="block w-full rounded-[11px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                  >
+                    ✉ Send private message
+                  </Link>
+                  {loggedIn ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setReportTarget({ userId: sheetPassenger.id, label: sheetPassenger.name, sailingId })
+                      }
+                      className="mt-2.5 block w-full text-center font-sans text-xs text-muted-2 hover:text-coral"
+                    >
+                      🚩 Report this passenger
+                    </button>
+                  ) : null}
+                </>
               )}
             </div>
           </div>
@@ -387,6 +402,8 @@ export default function PassengerBoard({
       {mySailing ? (
         <EditSailingProfileModal sailing={mySailing} open={editOpen} onClose={() => setEditOpen(false)} />
       ) : null}
+
+      <ReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
     </>
   );
 }
