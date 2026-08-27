@@ -13,6 +13,7 @@ import { GROUP_SEED_MESSAGES, formatTimeLabel, chatListTimeLabel, type ChatMessa
 import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
 import { badgeForRank, type Badge } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
+import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
 
 type GroupMessageRow = {
   id: string;
@@ -74,6 +75,7 @@ function rowToDmMessage(row: DmMessageRow, myUserId: string | null): ChatMessage
     ts: formatTimeLabel(new Date(row.created_at)),
     deleted: row.deleted,
     atMs: new Date(row.created_at).getTime(),
+    userId: row.sender_id,
   };
 }
 
@@ -229,6 +231,7 @@ function MessageBubble({
   onDelete,
   badge,
   onMessageSender,
+  onReport,
 }: {
   msg: ChatMessage;
   deletable?: boolean;
@@ -236,6 +239,7 @@ function MessageBubble({
   badge?: Badge | null;
   /** Only meaningful for group messages - DM bubbles already know who they're with. */
   onMessageSender?: (senderId: string) => void;
+  onReport?: (msg: ChatMessage) => void;
 }) {
   if (msg.deleted) {
     return (
@@ -265,6 +269,15 @@ function MessageBubble({
             className="hidden text-[10px] font-normal text-muted-2 underline decoration-dotted group-hover:inline hover:text-coral"
           >
             Delete
+          </button>
+        ) : null}
+        {!msg.mine && msg.userId && onReport ? (
+          <button
+            type="button"
+            onClick={() => onReport(msg)}
+            className="hidden text-[10px] font-normal text-muted-2 underline decoration-dotted group-hover:inline hover:text-coral"
+          >
+            Report
           </button>
         ) : null}
         {msg.sender}
@@ -425,6 +438,7 @@ function ChatAppInner() {
   // Pioneer badge rank per member of the active sailing, for the compact
   // ribbon next to a group-chat sender's name.
   const [memberJoinRanks, setMemberJoinRanks] = useState<Record<string, number | null>>({});
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
@@ -817,6 +831,26 @@ function ChatAppInner() {
     openDm(threadId);
   }
 
+  function reportGroupMessage(msg: ChatMessage) {
+    if (!msg.userId) return;
+    setReportTarget({
+      userId: msg.userId,
+      label: msg.sender,
+      sailingId: activeSailing?.id ?? null,
+      message: { id: msg.id, kind: "group_message", preview: msg.body },
+    });
+  }
+
+  function reportDmMessage(msg: ChatMessage) {
+    if (!msg.userId) return;
+    setReportTarget({
+      userId: msg.userId,
+      label: activeThread?.label ?? msg.sender,
+      sailingId: activeSailing?.id ?? null,
+      message: { id: msg.id, kind: "dm_message", preview: msg.body },
+    });
+  }
+
   async function sendGroup() {
     const text = groupDraft.trim();
     if (!text || !activeSailing || !userId) return;
@@ -1098,6 +1132,7 @@ function ChatAppInner() {
                     onDelete={deleteGroupMessage}
                     badge={m.userId ? badgeForRank(memberJoinRanks[m.userId]) : null}
                     onMessageSender={openDmWithSender}
+                    onReport={reportGroupMessage}
                   />
                 </div>
               ))}
@@ -1180,7 +1215,13 @@ function ChatAppInner() {
             <div ref={dmContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
               <DayDivider label="Conversation history" />
               {dmMessages.map((m) => (
-                <MessageBubble key={m.id} msg={m} deletable={m.mine} onDelete={deleteDmMessage} />
+                <MessageBubble
+                  key={m.id}
+                  msg={m}
+                  deletable={m.mine}
+                  onDelete={deleteDmMessage}
+                  onReport={reportDmMessage}
+                />
               ))}
             </div>
             <button
@@ -1223,6 +1264,8 @@ function ChatAppInner() {
           </div>
         </div>
       ) : null}
+
+      <ReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
     </main>
   );
 }

@@ -320,3 +320,29 @@ alter table contact_messages enable row level security;
 create policy "Anyone can submit a contact message"
   on contact_messages for insert
   with check (true);
+
+-- User/message reports. Nobody can read these back through the anon key
+-- (same stance as contact_messages) - reviewed manually via the Supabase
+-- dashboard for now, until there's an admin panel to triage them in-app.
+-- message_id has no foreign key since it can point at either
+-- group_messages or dm_messages depending on message_kind, and
+-- message_preview snapshots the body so a report still makes sense if the
+-- message is later deleted.
+create table if not exists reports (
+  id uuid primary key default gen_random_uuid(),
+  reporter_id uuid not null references auth.users (id) on delete cascade,
+  reported_user_id uuid not null references auth.users (id) on delete cascade,
+  sailing_id text,
+  message_kind text check (message_kind in ('group_message', 'dm_message')),
+  message_id uuid,
+  message_preview text,
+  reason text not null,
+  note text,
+  created_at timestamptz not null default now()
+);
+
+alter table reports enable row level security;
+
+create policy "Signed-in users can submit a report"
+  on reports for insert
+  with check (auth.uid() = reporter_id);
