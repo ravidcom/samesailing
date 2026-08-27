@@ -46,6 +46,10 @@ type DmThreadSummary = {
   sortKey: number;
   lastMessageAtMs: number;
   lastMessageMine: boolean;
+  /** Epoch ms of every message the other person sent in this thread - lets
+   * the unread badge count messages instead of just flagging "something's
+   * new", reactively against readMap (no refetch needed when it changes). */
+  otherMessageTimestamps: number[];
 };
 
 function rowToGroupMessage(row: GroupMessageRow, myUserId: string | null): ChatMessage {
@@ -132,8 +136,14 @@ async function fetchDmThreads(
     ])
   );
   const lastByThread = new Map<string, { sender_id: string; body: string; deleted: boolean; created_at: string }>();
+  const otherTimestampsByThread = new Map<string, number[]>();
   for (const m of lastMsgs ?? []) {
     if (!lastByThread.has(m.thread_id)) lastByThread.set(m.thread_id, m);
+    if (m.sender_id !== myId) {
+      const arr = otherTimestampsByThread.get(m.thread_id) ?? [];
+      arr.push(new Date(m.created_at).getTime());
+      otherTimestampsByThread.set(m.thread_id, arr);
+    }
   }
 
   return threads
@@ -154,6 +164,7 @@ async function fetchDmThreads(
         sortKey: last ? new Date(last.created_at).getTime() : 0,
         lastMessageAtMs: last ? new Date(last.created_at).getTime() : 0,
         lastMessageMine: last ? last.sender_id === myId : false,
+        otherMessageTimestamps: otherTimestampsByThread.get(t.id) ?? [],
       };
     })
     .sort((a, b) => b.sortKey - a.sortKey);
@@ -972,7 +983,8 @@ function ChatAppInner() {
                 PRIVATE · {dmThreads.length}
               </div>
               {dmThreads.map((t) => {
-                const unread = !t.lastMessageMine && t.lastMessageAtMs > (readMap[`dm:${t.id}`] ?? 0);
+                const dmReadAt = readMap[`dm:${t.id}`] ?? 0;
+                const unreadCount = t.otherMessageTimestamps.filter((ms) => ms > dmReadAt).length;
                 const draft = userId ? loadDmDraft(userId, t.id) : "";
                 const showDraft = t.lastMessageAtMs === 0 && !!draft;
                 return (
@@ -1004,9 +1016,9 @@ function ChatAppInner() {
                     </div>
                     <div className="shrink-0 self-start text-right">
                       <div className="text-[11px] text-[#9db4b7]">{t.timeLabel}</div>
-                      {unread ? (
+                      {unreadCount > 0 ? (
                         <div className="mt-1 inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-coral px-[5px] text-[10.5px] font-bold text-white">
-                          1
+                          {unreadCount > 9 ? "9+" : unreadCount}
                         </div>
                       ) : null}
                     </div>
