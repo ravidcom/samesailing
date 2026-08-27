@@ -207,7 +207,11 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
   // Already a member of this sailing - joining again would just overwrite
   // the existing profile row, so stop before the wizard rather than making
   // someone fill out four steps only to be told "already joined" at the end.
-  const alreadyJoined = auth.loggedIn && sailing && auth.mySailings.some((s) => s.id === sailing.id);
+  // Gated to step < 5: a successful finish() also lands the just-joined
+  // sailing in mySailings, which would otherwise make this check fire on
+  // step 5 too and hijack the real success screen for every completed join.
+  const alreadyJoined =
+    step < 5 && auth.loggedIn && sailing && auth.mySailings.some((s) => s.id === sailing.id);
   if (alreadyJoined) {
     return (
       <div className="mx-auto w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white px-[30px] py-10 text-center shadow-[0_20px_50px_rgba(42,32,28,.08)]">
