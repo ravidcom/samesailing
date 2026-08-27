@@ -228,11 +228,14 @@ function MessageBubble({
   deletable,
   onDelete,
   badge,
+  onMessageSender,
 }: {
   msg: ChatMessage;
   deletable?: boolean;
   onDelete?: (id: string) => void;
   badge?: Badge | null;
+  /** Only meaningful for group messages - DM bubbles already know who they're with. */
+  onMessageSender?: (senderId: string) => void;
 }) {
   if (msg.deleted) {
     return (
@@ -266,6 +269,19 @@ function MessageBubble({
         ) : null}
         {msg.sender}
         {badge ? <CompactBadge badge={badge} /> : null}
+        {!msg.mine && msg.userId && onMessageSender ? (
+          <button
+            type="button"
+            onClick={() => onMessageSender(msg.userId!)}
+            title={`Message ${msg.sender}`}
+            aria-label={`Send a private message to ${msg.sender}`}
+            className="opacity-60 transition-opacity hover:opacity-100"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 6.5h16v11H8.5L4 20.5z" />
+            </svg>
+          </button>
+        ) : null}
       </div>
       <div
         className={
@@ -790,6 +806,17 @@ function ChatAppInner() {
     setMobileShowingThread(false);
   }
 
+  // Lets someone jump straight from a sender's name in the group chat into a
+  // private thread with them, without leaving the page - same
+  // find-or-create-then-open flow as the /chat?with= deep link.
+  async function openDmWithSender(senderId: string) {
+    if (!userId || !activeSailing || senderId === userId) return;
+    const threadId = await findOrCreateThread(supabase, activeSailing.id, userId, senderId);
+    const list = await fetchDmThreads(supabase, activeSailing.id, userId);
+    setDmThreads(list);
+    openDm(threadId);
+  }
+
   async function sendGroup() {
     const text = groupDraft.trim();
     if (!text || !activeSailing || !userId) return;
@@ -1070,6 +1097,7 @@ function ChatAppInner() {
                     deletable={realIds.has(m.id)}
                     onDelete={deleteGroupMessage}
                     badge={m.userId ? badgeForRank(memberJoinRanks[m.userId]) : null}
+                    onMessageSender={openDmWithSender}
                   />
                 </div>
               ))}
