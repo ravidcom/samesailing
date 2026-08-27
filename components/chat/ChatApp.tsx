@@ -258,7 +258,7 @@ function MessageBubble({
   }
 
   return (
-    <div className={`group max-w-[74%] ${msg.mine ? "self-end" : "self-start"}`}>
+    <div className={`max-w-[74%] ${msg.mine ? "self-end" : "self-start"}`}>
       <div
         className={`mb-1 flex items-center gap-2 text-[11px] font-semibold ${msg.mine ? "justify-end pr-0.5 text-muted-2" : "pl-0.5 text-teal"}`}
       >
@@ -266,7 +266,7 @@ function MessageBubble({
           <button
             type="button"
             onClick={() => onDelete(msg.id)}
-            className="hidden text-[10px] font-normal text-muted-2 underline decoration-dotted group-hover:inline hover:text-coral"
+            className="text-[10px] font-normal text-muted-2 underline decoration-dotted hover:text-coral"
           >
             Delete
           </button>
@@ -275,7 +275,7 @@ function MessageBubble({
           <button
             type="button"
             onClick={() => onReport(msg)}
-            className="hidden text-[10px] font-normal text-muted-2 underline decoration-dotted group-hover:inline hover:text-coral"
+            className="text-[10px] font-normal text-muted-2 underline decoration-dotted hover:text-coral"
           >
             Report
           </button>
