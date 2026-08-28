@@ -4,6 +4,7 @@ import Link from "next/link";
 import NavBar from "@/components/NavBar";
 import SailingCard from "@/components/dashboard/SailingCard";
 import NotificationLog from "@/components/dashboard/NotificationLog";
+import InstallAppButton from "@/components/ui/InstallAppButton";
 import { useAuth } from "@/lib/auth-context";
 import { sailingDateKey } from "@/lib/sailingLabel";
 
@@ -59,6 +60,10 @@ export default function DashboardPage() {
           >
             ＋ Add a new sailing
           </Link>
+        </div>
+
+        <div className="mb-6">
+          <InstallAppButton />
         </div>
 
         {orderedSailings.length === 0 ? (
