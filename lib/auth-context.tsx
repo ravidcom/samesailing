@@ -65,6 +65,7 @@ type AuthContextValue = {
   user: AuthUser | null;
   /** False for Google/Facebook accounts — they never set a password to change. */
   hasPassword: boolean;
+  isAdmin: boolean;
   country: string;
   notifications: NotificationSettings;
   mySailings: JoinedSailing[];
@@ -142,9 +143,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [mySailings, setMySailings] = useState<JoinedSailing[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   async function loadUserData(userId: string) {
-    const [{ data: profileRow }, { data: sailingRows }] = await Promise.all([
+    const [{ data: profileRow }, { data: sailingRows }, { data: moderationRow }] = await Promise.all([
       supabase
         .from("profiles")
         .select(PROFILE_COLUMNS)
@@ -154,9 +156,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from("joined_sailings")
         .select("sailing_id,line,ship_name,sail_date,itinerary,port,profile,join_rank")
         .eq("user_id", userId),
+      supabase.from("user_moderation").select("is_admin,banned").eq("user_id", userId).maybeSingle(),
     ]);
+    // Banned accounts get signed out on the spot rather than populated with
+    // data they're about to lose access to - this only catches an already-
+    // open tab on its next session check (page load or token refresh), not
+    // instantly, which is an accepted tradeoff for how simple this is to run.
+    if (moderationRow?.banned) {
+      await supabase.auth.signOut();
+      return;
+    }
     setProfile(profileRow ?? null);
     setMySailings((sailingRows ?? []).map(rowToSailing));
+    setIsAdmin(moderationRow?.is_admin ?? false);
   }
 
   useEffect(() => {
@@ -174,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setMySailings([]);
         setUnreadCount(0);
+        setIsAdmin(false);
       }
     });
 
@@ -395,6 +408,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? { name: profile?.name ?? "Traveler", email: authUser.email ?? "-", avatar: profile?.avatar ?? "😊" }
       : null,
     hasPassword: authUser?.app_metadata?.provider === "email",
+    isAdmin,
     country: profile?.country ?? "",
     notifications: {
       notifyDigest: profile?.notify_digest ?? true,

@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function NavBar() {
   const router = useRouter();
-  const { loading, loggedIn, user, mySailings, hasUnreadMessages, signOut } = useAuth();
+  const { loading, loggedIn, user, mySailings, hasUnreadMessages, isAdmin, signOut } = useAuth();
 
   return (
     <nav className="fixed inset-x-0 top-0 z-[200] flex h-[62px] items-center justify-between border-b border-border bg-nav-bg px-3.5 backdrop-blur-md md:px-10">
@@ -44,6 +44,14 @@ export default function NavBar() {
             >
               Dashboard
             </Link>
+            {isAdmin ? (
+              <Link
+                href="/admin"
+                className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
+              >
+                Admin
+              </Link>
+            ) : null}
             <button
               type="button"
               onClick={() => {
