@@ -86,6 +86,7 @@ type AuthContextValue = {
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateNotificationSettings: (patch: Partial<NotificationSettings>) => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<{ error?: string }>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -400,6 +401,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   }
 
+  async function deleteAccount() {
+    const { error } = await supabase.rpc("delete_own_account");
+    if (error) return { error: error.message };
+    // The account (and its session) no longer exists server-side - drop the
+    // local session too so the app doesn't keep treating this tab as signed in.
+    await supabase.auth.signOut();
+    return {};
+  }
+
   const value: AuthContextValue = {
     loading,
     loggedIn: !!authUser,
@@ -431,6 +441,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updatePassword,
     updateNotificationSettings,
     signOut,
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

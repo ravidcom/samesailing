@@ -10,6 +10,7 @@ type Stats = {
   total_group_messages: number;
   total_dm_messages: number;
   open_reports: number;
+  total_account_deletions: number;
 };
 
 type NewUsers = {
@@ -33,6 +34,7 @@ const TILES: { key: keyof Stats; label: string }[] = [
   { key: "total_group_messages", label: "Group messages" },
   { key: "total_dm_messages", label: "Direct messages" },
   { key: "open_reports", label: "Open reports" },
+  { key: "total_account_deletions", label: "Accounts deleted" },
 ];
 
 const NEW_USER_TILES: { key: keyof NewUsers; label: string }[] = [

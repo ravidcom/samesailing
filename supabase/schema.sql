@@ -524,3 +524,70 @@ begin
     limit 20;
 end;
 $$;
+
+-- Insert-only log so admins can see how many accounts have been deleted.
+-- Deliberately has NO foreign key to auth.users - a FK there would get
+-- cascade-deleted the moment the very account it's counting is removed,
+-- defeating the point of counting it.
+create table if not exists account_deletions (
+  id uuid primary key default gen_random_uuid(),
+  deleted_at timestamptz not null default now()
+);
+
+alter table account_deletions enable row level security;
+-- No policies granted to any role - this table is only ever touched by
+-- delete_own_account() and read by admin_stats(), both security definer
+-- functions that run as the table owner and so bypass RLS on it.
+
+-- Lets a signed-in user delete their own account (profile page "Delete my
+-- account"). Deleting from auth.users directly isn't possible from the
+-- client (that schema isn't exposed via the API and doing it would need a
+-- service-role key, which this app deliberately never uses) - a security
+-- definer function runs as the table owner, which can. The row is logged
+-- before the delete since every other table's data cascades away with it.
+create or replace function delete_own_account()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+  insert into account_deletions default values;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+
+-- admin_stats()'s column list is changing, and `create or replace function`
+-- can't alter an existing function's return columns - drop it first.
+drop function if exists admin_stats();
+
+create function admin_stats()
+returns table (
+  total_users bigint,
+  total_sailings bigint,
+  total_group_messages bigint,
+  total_dm_messages bigint,
+  open_reports bigint,
+  total_account_deletions bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return query
+    select
+      (select count(*) from profiles),
+      (select count(distinct sailing_id) from joined_sailings),
+      (select count(*) from group_messages),
+      (select count(*) from dm_messages),
+      (select count(*) from reports where status = 'open'),
+      (select count(*) from account_deletions);
+end;
+$$;
