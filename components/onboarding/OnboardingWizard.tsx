@@ -96,7 +96,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     if (s === 4)
       return data.agreedTerms
         ? ""
-        : "You must agree to the Terms of Use and Privacy Policy to continue.";
+        : "You must confirm you're 18+ and agree to the Terms of Use and Privacy Policy to continue.";
     return "";
   }
 
