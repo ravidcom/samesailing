@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type Stats = {
@@ -105,14 +106,15 @@ export default function AdminStatsPanel() {
       ) : (
         <div className="overflow-hidden rounded-[16px] border border-[#e4f0f1] bg-white">
           {sailings.map((s, i) => (
-            <div
+            <Link
               key={s.sailing_id}
-              className={`flex items-center justify-between gap-3 px-4 py-3 ${
+              href={`/sailing/${s.sailing_id}/board`}
+              className={`flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-input ${
                 i < sailings.length - 1 ? "border-b border-border" : ""
               }`}
             >
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-charcoal">{s.ship_name}</div>
+                <div className="truncate text-sm font-semibold text-teal">{s.ship_name}</div>
                 <div className="text-xs text-muted-2">
                   {s.sail_date} · {s.sailing_id}
                 </div>
@@ -127,7 +129,7 @@ export default function AdminStatsPanel() {
                   <div className="text-[10.5px] text-muted-2">messages</div>
                 </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
