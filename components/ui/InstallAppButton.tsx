@@ -14,7 +14,7 @@ function ShareIcon() {
   );
 }
 
-export default function InstallAppButton() {
+export default function InstallAppButton({ compact }: { compact?: boolean }) {
   const { canInstall, isIOS, isStandalone, promptInstall } = usePwaInstall();
   const [showIOSHelp, setShowIOSHelp] = useState(false);
 
@@ -28,9 +28,13 @@ export default function InstallAppButton() {
       <button
         type="button"
         onClick={() => (isIOS ? setShowIOSHelp(true) : promptInstall())}
-        className="inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-border px-4 py-2 font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+        className={
+          compact
+            ? "inline-flex shrink-0 items-center gap-1 rounded-full border-[1.5px] border-border px-3 py-1.5 font-sans text-xs font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+            : "inline-flex items-center gap-1.5 rounded-full border-[1.5px] border-border px-4 py-2 font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+        }
       >
-        📲 Install app
+        {compact ? "📲 Install" : "📲 Install app"}
       </button>
 
       <Modal open={showIOSHelp} onClose={() => setShowIOSHelp(false)}>

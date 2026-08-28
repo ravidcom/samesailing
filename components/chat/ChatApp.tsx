@@ -13,6 +13,7 @@ import { GROUP_SEED_MESSAGES, formatTimeLabel, chatListTimeLabel, type ChatMessa
 import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
 import { badgeForRank, type Badge } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
+import InstallAppButton from "@/components/ui/InstallAppButton";
 import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
 
 type GroupMessageRow = {
@@ -969,8 +970,9 @@ function ChatAppInner() {
           mobileShowingThread ? "hidden" : "flex"
         }`}
       >
-        <div className="shrink-0 border-b border-border bg-[#f3fbfb] px-4 py-3.5">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-[#f3fbfb] px-4 py-3.5">
           <div className="font-display text-[20px] font-bold text-charcoal">Messages</div>
+          <InstallAppButton compact />
         </div>
 
         {orderedSailings.length > 1 ? (
