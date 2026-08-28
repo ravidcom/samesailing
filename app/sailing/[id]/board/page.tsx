@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import NavBar from "@/components/NavBar";
 import SailingHeaderCard from "@/components/board/SailingHeaderCard";
 import PassengerBoard from "@/components/board/PassengerBoard";
@@ -14,6 +15,28 @@ import type { OnboardingProfile } from "@/lib/auth-context";
 function shortDateWithYear(label: string): string {
   const m = label.match(/^(\w+) (\d+), (\d+)$/);
   return m ? `${m[1].slice(0, 3)} ${m[2]}, ${m[3]}` : label;
+}
+
+export async function generateMetadata({ params }: PageProps<"/sailing/[id]/board">): Promise<Metadata> {
+  const { id } = await params;
+  const sailing = await getSailingById(id);
+  if (!sailing) return {};
+  const { count } = await createServerClient()
+    .from("joined_sailings")
+    .select("id", { count: "exact", head: true })
+    .eq("sailing_id", sailing.id);
+  const title = `${sailing.shipName} passengers - ${sailing.date}`;
+  const description =
+    count && count > 0
+      ? `See who's already sailing on ${sailing.shipName}, departing ${sailing.date} from ${sailing.port} - ${count} traveler${count === 1 ? "" : "s"} have joined so far.`
+      : `Browse passengers on ${sailing.shipName}, departing ${sailing.date} from ${sailing.port}.`;
+  return {
+    title,
+    description,
+    alternates: { canonical: `/sailing/${sailing.id}/board` },
+    openGraph: { title, description, url: `/sailing/${sailing.id}/board` },
+    twitter: { title, description },
+  };
 }
 
 export default async function BoardPage({ params }: PageProps<"/sailing/[id]/board">) {

@@ -15,10 +15,30 @@ const hanken = Hanken_Grotesk({
   weight: ["400", "500", "600", "700"],
 });
 
+const SITE_DESCRIPTION =
+  "Discover travelers on your exact cruise. Plan dinners, find playmates for the kids, share a shore excursion - all before you board.";
+
 export const metadata: Metadata = {
-  title: "SameSailing.com",
-  description:
-    "Discover travelers on your exact cruise. Plan dinners, find playmates for the kids, share a shore excursion - all before you board.",
+  metadataBase: new URL("https://samesailing.com"),
+  title: {
+    default: "SameSailing.com - Meet your fellow cruise passengers",
+    // Child pages set only their own part via generateMetadata's `title`;
+    // this appends the site name so every tab/search result stays branded.
+    template: "%s | SameSailing",
+  },
+  description: SITE_DESCRIPTION,
+  openGraph: {
+    title: "SameSailing.com",
+    description: SITE_DESCRIPTION,
+    url: "/",
+    siteName: "SameSailing",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SameSailing.com",
+    description: SITE_DESCRIPTION,
+  },
   appleWebApp: {
     capable: true,
     title: "SameSailing",
