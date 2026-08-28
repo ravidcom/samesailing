@@ -7,14 +7,18 @@ import NavBar from "@/components/NavBar";
 import NameModePicker from "@/components/NameModePicker";
 import NotificationSettings from "@/components/dashboard/NotificationSettings";
 import InstallAppButton from "@/components/ui/InstallAppButton";
+import Modal from "@/components/ui/Modal";
 import { useAuth } from "@/lib/auth-context";
 import type { NameMode } from "@/lib/displayName";
 import { fieldLabel, textInput, errorText } from "@/lib/formStyles";
 
 export default function ProfilePage() {
-  const { loading, loggedIn, user, country, hasPassword, nameMode, nickname, updateAccount, updatePassword } =
+  const { loading, loggedIn, user, country, hasPassword, nameMode, nickname, updateAccount, updatePassword, deleteAccount } =
     useAuth();
   const router = useRouter();
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   // "anon" is a legacy value from before the picker dropped that option —
   // treat it the same as never having chosen, so the picker always shows
   // one of the two remaining options selected instead of neither.
@@ -56,6 +60,18 @@ export default function ProfilePage() {
     setNewPassword("");
     setConfirmPassword("");
     setPasswordSaved(true);
+  }
+
+  async function confirmDelete() {
+    setDeleting(true);
+    setDeleteError("");
+    const result = await deleteAccount();
+    setDeleting(false);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
+    router.push("/");
   }
 
   if (loading) {
@@ -104,7 +120,7 @@ export default function ProfilePage() {
 
         <label className={fieldLabel + " mt-5"}>How you appear to other passengers</label>
         <p className="mb-2.5 text-[11.5px] leading-relaxed text-muted-2">
-          Only fellow travelers on your sailings can see this. Never your contact details.
+          This appears on your sailings&apos; passenger boards, which are publicly viewable. Never your contact details.
         </p>
 
         <NameModePicker
@@ -172,7 +188,44 @@ export default function ProfilePage() {
             Save
           </button>
         </div>
+
+        <div className="mt-10 text-center">
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(true)}
+            className="font-sans text-xs text-muted-2 underline decoration-dotted transition-colors hover:text-[#c9503b]"
+          >
+            Delete my account
+          </button>
+        </div>
       </main>
+
+      <Modal open={deleteOpen} onClose={() => (deleting ? null : setDeleteOpen(false))}>
+        <div className="mb-1 font-display text-lg font-bold text-charcoal">Delete your account?</div>
+        <p className="mb-4 text-sm leading-relaxed text-muted">
+          This permanently deletes your profile, removes you from every sailing&apos;s passenger board, and can&apos;t
+          be undone. Messages you&apos;ve already sent may remain visible to their recipients.
+        </p>
+        {deleteError ? <div className={errorText}>{deleteError}</div> : null}
+        <div className="mt-5 flex gap-2.5">
+          <button
+            type="button"
+            onClick={() => setDeleteOpen(false)}
+            disabled={deleting}
+            className="flex-1 rounded-[11px] border-[1.5px] border-border py-3 font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={confirmDelete}
+            disabled={deleting}
+            className="flex-1 rounded-[11px] border-none bg-[#c9503b] py-3 font-sans text-sm font-semibold text-white transition-colors hover:bg-[#a83f2d] disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {deleting ? "Deleting…" : "Yes, delete my account"}
+          </button>
+        </div>
+      </Modal>
     </>
   );
 }

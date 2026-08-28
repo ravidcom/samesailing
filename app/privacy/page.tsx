@@ -71,17 +71,23 @@ export default function PrivacyPage() {
         entirely, and control email notifications at any time from your
         dashboard. Leaving a sailing removes your profile from its passenger
         board, though messages you already sent may remain visible to their
-        recipients. To delete your account and its data entirely, contact us
-        and we&apos;ll take care of it.
+        recipients. You can permanently delete your account and its data at
+        any time from the <strong>Delete my account</strong> option on your
+        profile page — this removes your profile, sailing memberships, and
+        account details. As with leaving a sailing, messages you&apos;ve
+        already sent may remain visible to their recipients.
       </p>
 
-      <h2>Cookies and local storage</h2>
+      <h2>Cookies and analytics</h2>
       <p>
-        SameSailing.com uses only what&apos;s needed to keep you signed in
-        and remember your session on your device. We don&apos;t use
-        advertising or analytics trackers. If that ever changes, we&apos;ll
-        update this policy and ask for your consent where the law requires
-        it.
+        SameSailing.com uses essential cookies to keep you signed in and
+        remember your session — these don&apos;t require consent and can&apos;t
+        be turned off. With your consent, given through the cookie banner, we
+        also use Google Analytics to understand how the site is used in
+        aggregate. Analytics cookies are only set if you accept them, and you
+        can decline or change your mind at any time by clearing your
+        browser&apos;s site data for SameSailing.com. We don&apos;t use
+        advertising trackers or sell data to advertisers.
       </p>
 
       <h2>Questions</h2>
