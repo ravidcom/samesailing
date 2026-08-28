@@ -148,7 +148,7 @@ export default function SailingHeaderCard({
                 href="/dashboard"
                 className="shrink-0 whitespace-nowrap rounded-full border-[1.5px] border-white/55 bg-white/16 px-3 py-[7px] font-sans text-xs font-bold text-white"
               >
-                Change ⇄
+                Change sailing ⇄
               </Link>
             )
           ) : null}
@@ -220,27 +220,52 @@ export default function SailingHeaderCard({
       </div>
 
       {joined && count > 1 ? (
-        <div className="flex items-center justify-center gap-1.75 pt-[13px] pb-3">
-          {count <= MAX_DOTS ? (
-            ordered.map((s, i) => (
+        <>
+          {/* Mobile: paired with the swipe gesture above - dots just show
+              position since the ship name is already visible on the card
+              you're swiping. */}
+          <div className="flex items-center justify-center gap-1.75 pt-[13px] pb-3 md:hidden">
+            {count <= MAX_DOTS ? (
+              ordered.map((s, i) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => goTo(i)}
+                  aria-label={`Go to ${shortLabels.get(s.id) ?? s.shipName} (sailing ${i + 1} of ${count})`}
+                  className={
+                    i === myIndex
+                      ? "h-1.5 w-5 rounded-full bg-[#0E8C99]"
+                      : "h-1.5 w-1.5 rounded-full bg-[#c3d6d8]"
+                  }
+                />
+              ))
+            ) : (
+              <span className="text-[12.5px] font-bold text-muted-2">
+                {myIndex + 1} / {count}
+              </span>
+            )}
+          </div>
+
+          {/* Desktop: no swipe gesture to pair with, so dots would carry no
+              information - a row of named, clickable pills instead (same
+              pattern as the chat sidebar's sailing switcher). */}
+          <div className="hidden flex-wrap items-center justify-center gap-2 pt-[13px] pb-3 md:flex">
+            {ordered.map((s, i) => (
               <button
                 key={s.id}
                 type="button"
                 onClick={() => goTo(i)}
-                aria-label={`Go to ${shortLabels.get(s.id) ?? s.shipName} (sailing ${i + 1} of ${count})`}
-                className={
+                className={`rounded-full px-3.5 py-1.5 font-sans text-[12.5px] font-bold transition-colors ${
                   i === myIndex
-                    ? "h-1.5 w-5 rounded-full bg-[#0E8C99]"
-                    : "h-1.5 w-1.5 rounded-full bg-[#c3d6d8]"
-                }
-              />
-            ))
-          ) : (
-            <span className="text-[12.5px] font-bold text-muted-2">
-              {myIndex + 1} / {count}
-            </span>
-          )}
-        </div>
+                    ? "bg-teal text-white"
+                    : "border border-border bg-white text-muted hover:border-teal hover:text-teal"
+                }`}
+              >
+                {shortLabels.get(s.id) ?? s.shipName}
+              </button>
+            ))}
+          </div>
+        </>
       ) : null}
     </div>
   );
