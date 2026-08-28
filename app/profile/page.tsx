@@ -149,7 +149,9 @@ export default function ProfilePage() {
           </>
         ) : null}
 
-        <NotificationSettings />
+        <div id="notification-settings" className="scroll-mt-[74px]">
+          <NotificationSettings />
+        </div>
 
         <div className="mt-8">
           <InstallAppButton />
