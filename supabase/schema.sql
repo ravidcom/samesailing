@@ -445,3 +445,73 @@ begin
       (select count(*) from reports where status = 'open');
 end;
 $$;
+
+create or replace function admin_new_users()
+returns table (
+  today bigint,
+  yesterday bigint,
+  last_7_days bigint,
+  last_30_days bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return query
+    select
+      count(*) filter (where created_at >= date_trunc('day', now())),
+      count(*) filter (
+        where created_at >= date_trunc('day', now()) - interval '1 day'
+          and created_at < date_trunc('day', now())
+      ),
+      count(*) filter (where created_at >= now() - interval '7 days'),
+      count(*) filter (where created_at >= now() - interval '30 days')
+    from profiles;
+end;
+$$;
+
+-- Top sailings by member count, with each one's group-chat message count.
+-- Reads joined_sailings (already public) and only a per-sailing count of
+-- group_messages, not message content - same aggregate-only stance as
+-- admin_stats().
+create or replace function admin_popular_sailings()
+returns table (
+  sailing_id text,
+  ship_name text,
+  sail_date text,
+  member_count bigint,
+  message_count bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return query
+    select
+      j.sailing_id,
+      j.ship_name,
+      j.sail_date,
+      j.member_count,
+      coalesce(g.message_count, 0) as message_count
+    from (
+      select sailing_id, min(ship_name) as ship_name, min(sail_date) as sail_date, count(distinct user_id) as member_count
+      from joined_sailings
+      group by sailing_id
+    ) j
+    left join (
+      select sailing_id, count(*) as message_count
+      from group_messages
+      group by sailing_id
+    ) g on g.sailing_id = j.sailing_id
+    order by j.member_count desc, coalesce(g.message_count, 0) desc
+    limit 20;
+end;
+$$;
