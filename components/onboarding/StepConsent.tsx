@@ -69,9 +69,9 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
         Terms &amp; conditions <span className="font-semibold text-teal normal-case tracking-normal">Required</span>
       </label>
       <OptRow checked={data.agreedTerms} onToggle={() => update({ agreedTerms: !data.agreedTerms })}>
-        I have read and agree to SameSailing.com&apos;s{" "}
-        <span className="font-semibold text-teal">Terms of Use</span> and{" "}
-        <span className="font-semibold text-teal">Privacy Policy</span>, including
+        I confirm I am 18 years of age or older, and I have read and agree to
+        SameSailing.com&apos;s <span className="font-semibold text-teal">Terms of Use</span>{" "}
+        and <span className="font-semibold text-teal">Privacy Policy</span>, including
         how my data is used to match me with fellow travelers on my sailing.
       </OptRow>
 
