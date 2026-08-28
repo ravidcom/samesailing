@@ -79,15 +79,17 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
     <>
       <NavBar />
       <main className="pt-[62px]">
-        <div className="mx-auto max-w-[1000px] px-3.5 pt-3.5">
-          <SailingHeaderCard
-            sailingId={sailing.id}
-            lineLabel={lineLabel}
-            shipName={sailing.shipName}
-            dateLabel={shortDateWithYear(sailing.date)}
-            port={sailing.port}
-            countdown={countdown}
-          />
+        <div className="px-4 pt-3.5 sm:px-8 md:px-12">
+          <div className="mx-auto max-w-[1000px]">
+            <SailingHeaderCard
+              sailingId={sailing.id}
+              lineLabel={lineLabel}
+              shipName={sailing.shipName}
+              dateLabel={shortDateWithYear(sailing.date)}
+              port={sailing.port}
+              countdown={countdown}
+            />
+          </div>
         </div>
 
         <PassengerBoard key={sailing.id} sailingId={sailing.id} passengers={passengers} />
