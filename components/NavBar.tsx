@@ -9,6 +9,12 @@ export default function NavBar() {
   const router = useRouter();
   const { loading, loggedIn, user, mySailings, hasUnreadMessages, isAdmin, signOut } = useAuth();
 
+  // Same fallback as MobileTabBar's Passengers tab: there's no single
+  // "right" sailing once you've joined more than one, but landing on a
+  // board beats bouncing to the dashboard, which is what this link would
+  // otherwise be indistinguishable from.
+  const passengersHref = mySailings.length > 0 ? `/sailing/${mySailings[0].id}/board` : "/dashboard";
+
   return (
     <nav className="fixed inset-x-0 top-0 z-[200] flex h-[62px] items-center justify-between border-b border-border bg-nav-bg px-3.5 backdrop-blur-md md:px-10">
       <Link
@@ -27,22 +33,36 @@ export default function NavBar() {
             <span className="max-w-[90px] truncate text-[13px] font-medium text-muted md:max-w-none">
               {user?.name}
             </span>
-            {mySailings.length > 0 ? (
-              <Link
-                href="/chat"
-                className="relative hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
-              >
-                Chat
-                {hasUnreadMessages ? (
-                  <span className="absolute top-1 right-0.5 h-1.5 w-1.5 rounded-full bg-coral" aria-label="Unread messages" />
-                ) : null}
-              </Link>
-            ) : null}
+            {/* Mirrors the mobile tab bar's four destinations (Sailings,
+                Passengers, Chat, Profile), always shown regardless of
+                mySailings - each of those pages already has its own graceful
+                empty state rather than needing to be hidden here. */}
             <Link
               href="/dashboard"
               className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
             >
               Dashboard
+            </Link>
+            <Link
+              href={passengersHref}
+              className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
+            >
+              Passengers
+            </Link>
+            <Link
+              href="/chat"
+              className="relative hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
+            >
+              Chat
+              {hasUnreadMessages ? (
+                <span className="absolute top-1 right-0.5 h-1.5 w-1.5 rounded-full bg-coral" aria-label="Unread messages" />
+              ) : null}
+            </Link>
+            <Link
+              href="/profile"
+              className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
+            >
+              Profile
             </Link>
             {isAdmin ? (
               // Unlike Chat/Dashboard, Admin has no equivalent in the mobile
