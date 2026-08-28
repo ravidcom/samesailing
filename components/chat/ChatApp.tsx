@@ -444,6 +444,7 @@ function ChatAppInner() {
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
   const [dmDraft, setDmDraft] = useState("");
   const deepLinkHandled = useRef<string | null>(null);
+  const groupDeepLinkHandled = useRef<string | null>(null);
   const [readMap, setReadMap] = useState<Record<string, number>>({});
 
   const activeSailing = mySailings.find((s) => s.id === activeSailingId) ?? mySailings[0] ?? null;
@@ -739,6 +740,25 @@ function ChatAppInner() {
       router.replace("/chat");
     })();
   }, [searchParams, userId, activeSailingId, supabase, router, setActiveSailingId]);
+
+  // Deep link from the admin dashboard: /chat?sailing=<sailingId> - opens
+  // that sailing's group pane directly. Silently no-ops if the current
+  // user isn't a member of that sailing (e.g. an admin viewing a report for
+  // a sailing they never joined) rather than erroring.
+  useEffect(() => {
+    const withId = searchParams.get("with");
+    const sailingParam = searchParams.get("sailing");
+    if (withId || !sailingParam || !userId) return;
+    if (groupDeepLinkHandled.current === sailingParam) return;
+    if (!mySailings.some((s) => s.id === sailingParam)) return;
+    groupDeepLinkHandled.current = sailingParam;
+    (async () => {
+      setActiveSailingId(sailingParam);
+      setPane({ type: "group" });
+      setMobileShowingThread(true);
+      router.replace("/chat");
+    })();
+  }, [searchParams, userId, mySailings, router, setActiveSailingId]);
 
   // Active DM thread: load history + subscribe to realtime inserts/updates.
   useEffect(() => {
