@@ -14,7 +14,6 @@ import StepDetails from "./StepDetails";
 import StepConsent from "./StepConsent";
 import StepSuccess from "./StepSuccess";
 
-const EYES = ["Step 1 of 4", "Step 2 of 4", "Step 3 of 4", "Step 4 of 4", ""];
 const TTLS = [
   "Create your account",
   "Your travel party",
@@ -204,6 +203,14 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
 
   const sailingLabel = sailing ? `${sailing.shipName} · ${sailing.date}` : null;
 
+  // Party type / age / gender / country / goals (steps 2-3) are per-sailing
+  // profile fields (they end up in joined_sailings.profile) - with no
+  // sailing picked yet, there's nowhere for that data to go, so asking for
+  // it would just be discarded and re-asked the moment they actually join
+  // one. Skip straight from account creation to consent in that case.
+  const totalSteps = sailing ? 4 : 2;
+  const displayStep = sailing || step !== 4 ? step : 2;
+
   // Already a member of this sailing - joining again would just overwrite
   // the existing profile row, so stop before the wizard rather than making
   // someone fill out four steps only to be told "already joined" at the end.
@@ -240,11 +247,11 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     <div className="mx-auto w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white shadow-[0_20px_50px_rgba(42,32,28,.08)]">
       <div className="border-b border-border bg-input px-[30px] pb-[22px] pt-6">
         <div className="mb-[18px] flex gap-1.5">
-          {[1, 2, 3, 4].map((i) => (
+          {Array.from({ length: totalSteps }, (_, idx) => idx + 1).map((i) => (
             <div
               key={i}
               className={`h-1 flex-1 rounded-full transition-colors ${
-                i < step ? "bg-teal" : i === step ? "bg-teal/50" : "bg-border"
+                i < displayStep ? "bg-teal" : i === displayStep ? "bg-teal/50" : "bg-border"
               }`}
             />
           ))}
@@ -252,7 +259,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         {step <= 4 ? (
           <>
             <div className="mb-1 text-xs font-semibold tracking-[.04em] text-teal">
-              {EYES[step - 1]}
+              Step {displayStep} of {totalSteps}
             </div>
             <div className="font-display text-[22px] font-bold text-charcoal">
               {TTLS[step - 1]}
@@ -268,7 +275,13 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
 
       <div className="px-[30px] pb-[30px] pt-[26px]">
         {step === 1 ? (
-          <StepAccount data={data} update={update} error={error} onContinue={() => goNext(2)} onSocialAuth={socialAuth} />
+          <StepAccount
+            data={data}
+            update={update}
+            error={error}
+            onContinue={() => goNext(sailing ? 2 : 4)}
+            onSocialAuth={socialAuth}
+          />
         ) : null}
         {step === 2 ? (
           <StepProfile data={data} update={update} error={error} onContinue={() => goNext(3)} onBack={() => goBack(1)} />
@@ -282,9 +295,10 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
             update={update}
             error={error}
             onFinish={finish}
-            onBack={() => goBack(3)}
+            onBack={() => goBack(sailing ? 3 : 1)}
             submitting={submitting}
             loggedIn={auth.loggedIn}
+            hasSailing={!!sailing}
           />
         ) : null}
         {step === 5 ? (

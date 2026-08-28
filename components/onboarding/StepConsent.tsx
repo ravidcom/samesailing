@@ -3,7 +3,13 @@ import type { StepProps } from "./types";
 import NameModePicker from "@/components/NameModePicker";
 import { fieldLabel, primaryButton, backLink, errorText } from "@/lib/formStyles";
 
-type Props = StepProps & { onFinish: () => void; onBack: () => void; submitting?: boolean; loggedIn: boolean };
+type Props = StepProps & {
+  onFinish: () => void;
+  onBack: () => void;
+  submitting?: boolean;
+  loggedIn: boolean;
+  hasSailing: boolean;
+};
 
 function OptRow({
   checked,
@@ -28,7 +34,7 @@ function OptRow({
   );
 }
 
-export default function StepConsent({ data, update, error, onFinish, onBack, submitting, loggedIn }: Props) {
+export default function StepConsent({ data, update, error, onFinish, onBack, submitting, loggedIn, hasSailing }: Props) {
   return (
     <div>
       <div className="rounded-[11px] border-[1.5px] border-l-[3px] border-border border-l-teal bg-input px-3.5 py-3 text-xs leading-relaxed text-muted">
@@ -83,7 +89,7 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
         onClick={onFinish}
         disabled={submitting}
       >
-        {submitting ? "Joining…" : "Join my sailing →"}
+        {submitting ? "Joining…" : hasSailing ? "Join my sailing →" : "Create my account →"}
       </button>
       <button type="button" className={backLink} onClick={onBack} disabled={submitting}>
         ← Back
