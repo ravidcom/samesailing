@@ -1,11 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import NavBar from "@/components/NavBar";
 import { getSailingById, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { scarcityState } from "@/lib/pioneer";
 import { createServerClient } from "@/lib/supabase/server";
 import FoundingBadgeTiles from "@/components/board/FoundingBadgeTiles";
+
+function describeSailing(sailing: NonNullable<Awaited<ReturnType<typeof getSailingById>>>): string {
+  return `${sailing.shipName} sails a ${sailing.itinerary} itinerary, departing ${sailing.date} from ${sailing.port}. Meet fellow travelers on this exact sailing before you set sail.`;
+}
+
+export async function generateMetadata({ params }: PageProps<"/sailing/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const sailing = await getSailingById(id);
+  if (!sailing) return {};
+  const title = `${sailing.shipName} - ${sailing.date}`;
+  const description = describeSailing(sailing);
+  return {
+    title,
+    description,
+    alternates: { canonical: `/sailing/${sailing.id}` },
+    openGraph: { title, description, url: `/sailing/${sailing.id}` },
+    twitter: { title, description },
+  };
+}
 
 export default async function SailingResultPage({
   params,
@@ -50,6 +70,11 @@ export default async function SailingResultPage({
           </div>
 
           <div className="px-8 py-7">
+            {/* Real sentence-form description, not just the facts grid below -
+                gives crawlers and readers a unique summary of this exact
+                sailing, matching the page's own meta description. */}
+            <p className="mb-5 text-sm leading-relaxed text-muted">{describeSailing(sailing)}</p>
+
             <div className="mb-5 flex gap-6 text-sm">
               <div>
                 <div className="mb-1 text-[11px] font-bold tracking-[.08em] text-muted-2 uppercase">

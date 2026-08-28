@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import fallbackRaw from "./data/royal-caribbean-sailings.json";
 
@@ -222,6 +223,14 @@ export async function getCruiseLineNames(): Promise<string[]> {
   return Object.keys(cruiseLines).sort((a, b) => a.localeCompare(b));
 }
 
+/** Every sailing id across every line/ship, flattened - for the sitemap. */
+export async function getAllSailingIds(): Promise<string[]> {
+  const cruiseLines = await getCruiseLines();
+  return Object.values(cruiseLines).flatMap((ships) =>
+    ships.flatMap((ship) => ship.dates.map((date) => date.id))
+  );
+}
+
 export type SailingInfo = {
   id: string;
   line: string;
@@ -235,7 +244,10 @@ export type SailingInfo = {
   region?: string;
 };
 
-export async function getSailingById(id: string): Promise<SailingInfo | null> {
+// Wrapped in React's cache() so a page's generateMetadata() and its own
+// component body - both calling this for the same id in one request, e.g.
+// app/sailing/[id]/page.tsx - share one lookup instead of two.
+export const getSailingById = cache(async function getSailingById(id: string): Promise<SailingInfo | null> {
   const cruiseLines = await getCruiseLines();
   for (const [line, ships] of Object.entries(cruiseLines)) {
     for (const ship of ships) {
@@ -257,7 +269,7 @@ export async function getSailingById(id: string): Promise<SailingInfo | null> {
     }
   }
   return null;
-}
+});
 
 /** Sailings below this many joined travelers show a "founding member" pitch instead of a browse-first one. */
 export const MIN_BROWSE_THRESHOLD = 10;
