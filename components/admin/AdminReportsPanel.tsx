@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth-context";
 
 type ReportStatus = "open" | "resolved" | "dismissed";
 
@@ -33,8 +35,10 @@ const STATUS_STYLE: Record<ReportStatus, string> = {
 };
 
 export default function AdminReportsPanel() {
+  const { userId } = useAuth();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [banned, setBanned] = useState<Record<string, boolean>>({});
   const [contacts, setContacts] = useState<ContactRow[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
@@ -56,8 +60,13 @@ export default function AdminReportsPanel() {
         userIds.add(r.reported_user_id);
       }
       if (userIds.size > 0) {
-        const { data: profiles } = await supabase.from("profiles").select("id,name").in("id", [...userIds]);
-        if (!cancelled) setNames(Object.fromEntries((profiles ?? []).map((p) => [p.id, p.name])));
+        const [{ data: profiles }, { data: moderation }] = await Promise.all([
+          supabase.from("profiles").select("id,name").in("id", [...userIds]),
+          supabase.from("user_moderation").select("user_id,banned").in("user_id", [...userIds]),
+        ]);
+        if (cancelled) return;
+        setNames(Object.fromEntries((profiles ?? []).map((p) => [p.id, p.name])));
+        setBanned(Object.fromEntries((moderation ?? []).map((m) => [m.user_id, m.banned])));
       }
     });
     return () => {
@@ -70,6 +79,17 @@ export default function AdminReportsPanel() {
     const supabase = createClient();
     await supabase.from("reports").update({ status }).eq("id", id);
     setReports((prev) => prev?.map((r) => (r.id === id ? { ...r, status } : r)) ?? null);
+    setPending(null);
+  }
+
+  // Bans by exact user id, taken straight from the report row - no risk of
+  // matching the wrong person even when several travelers share a name.
+  async function toggleBan(targetUserId: string) {
+    setPending(targetUserId);
+    const supabase = createClient();
+    const nextBanned = !banned[targetUserId];
+    await supabase.from("user_moderation").upsert({ user_id: targetUserId, banned: nextBanned }, { onConflict: "user_id" });
+    setBanned((prev) => ({ ...prev, [targetUserId]: nextBanned }));
     setPending(null);
   }
 
@@ -130,30 +150,53 @@ export default function AdminReportsPanel() {
                   {r.message_kind === "dm_message" ? "DM" : "Group"}: “{r.message_preview}”
                 </div>
               ) : null}
-              <div className="mt-2 text-[11px] text-muted-2">
-                {r.sailing_id ? `${r.sailing_id} · ` : ""}
-                {new Date(r.created_at).toLocaleString()}
+              <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-muted-2">
+                <span>
+                  {r.sailing_id ? `${r.sailing_id} · ` : ""}
+                  {new Date(r.created_at).toLocaleString()}
+                </span>
+                {r.sailing_id && r.message_kind === "group_message" ? (
+                  <Link href={`/chat?sailing=${r.sailing_id}`} className="font-semibold text-teal hover:underline">
+                    Open group chat →
+                  </Link>
+                ) : null}
               </div>
-              {r.status === "open" ? (
-                <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
+                {r.status === "open" ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setStatus(r.id, "resolved")}
+                      disabled={pending === r.id}
+                      className="rounded-[9px] border-[1.5px] border-teal px-3 py-1.5 font-sans text-xs font-semibold text-teal transition-colors hover:bg-teal-tint disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Mark resolved
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStatus(r.id, "dismissed")}
+                      disabled={pending === r.id}
+                      className="rounded-[9px] border-[1.5px] border-border px-3 py-1.5 font-sans text-xs font-semibold text-muted transition-colors hover:border-muted-2 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Dismiss
+                    </button>
+                  </>
+                ) : null}
+                {r.reported_user_id === userId ? null : (
                   <button
                     type="button"
-                    onClick={() => setStatus(r.id, "resolved")}
-                    disabled={pending === r.id}
-                    className="rounded-[9px] border-[1.5px] border-teal px-3 py-1.5 font-sans text-xs font-semibold text-teal transition-colors hover:bg-teal-tint disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => toggleBan(r.reported_user_id)}
+                    disabled={pending === r.reported_user_id}
+                    className={`rounded-[9px] border-[1.5px] px-3 py-1.5 font-sans text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                      banned[r.reported_user_id]
+                        ? "border-border text-muted hover:border-teal hover:text-teal"
+                        : "border-[#ffd0b8] text-coral hover:bg-[#fff3eb]"
+                    }`}
                   >
-                    Mark resolved
+                    {banned[r.reported_user_id] ? "Unban" : "Ban"} {names[r.reported_user_id] ?? "user"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setStatus(r.id, "dismissed")}
-                    disabled={pending === r.id}
-                    className="rounded-[9px] border-[1.5px] border-border px-3 py-1.5 font-sans text-xs font-semibold text-muted transition-colors hover:border-muted-2 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              ) : null}
+                )}
+              </div>
             </div>
           ))}
         </div>

@@ -494,6 +494,11 @@ begin
   if not is_admin() then
     raise exception 'not authorized';
   end if;
+  -- Every column here is qualified with its table alias, including inside
+  -- the subqueries' own select/group by - this function's RETURNS TABLE
+  -- columns (sailing_id, ship_name, sail_date) are exposed as plpgsql
+  -- variables of the same name inside the function body, so an unqualified
+  -- reference is ambiguous between the variable and the table's column.
   return query
     select
       j.sailing_id,
@@ -502,14 +507,18 @@ begin
       j.member_count,
       coalesce(g.message_count, 0) as message_count
     from (
-      select sailing_id, min(ship_name) as ship_name, min(sail_date) as sail_date, count(distinct user_id) as member_count
-      from joined_sailings
-      group by sailing_id
+      select
+        js.sailing_id,
+        min(js.ship_name) as ship_name,
+        min(js.sail_date) as sail_date,
+        count(distinct js.user_id) as member_count
+      from joined_sailings js
+      group by js.sailing_id
     ) j
     left join (
-      select sailing_id, count(*) as message_count
-      from group_messages
-      group by sailing_id
+      select gm.sailing_id, count(*) as message_count
+      from group_messages gm
+      group by gm.sailing_id
     ) g on g.sailing_id = j.sailing_id
     order by j.member_count desc, coalesce(g.message_count, 0) desc
     limit 20;
