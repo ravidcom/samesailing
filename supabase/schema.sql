@@ -346,3 +346,102 @@ alter table reports enable row level security;
 create policy "Signed-in users can submit a report"
   on reports for insert
   with check (auth.uid() = reporter_id);
+
+-- Admin/ban flags for the admin dashboard, kept in their own table rather
+-- than on `profiles` - that table already has a "using (true)" select
+-- policy for display-name lookups, so anything added to it is world
+-- readable regardless of any other policy (RLS policies are OR'd).
+create table if not exists user_moderation (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  is_admin boolean not null default false,
+  banned boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+alter table user_moderation enable row level security;
+
+-- create policy has no "if not exists"/"or replace" form, unlike the
+-- tables/functions above - drop-then-create keeps this block safe to
+-- run again (e.g. after an earlier partial run failed partway through).
+drop policy if exists "Users can view their own moderation status" on user_moderation;
+create policy "Users can view their own moderation status"
+  on user_moderation for select
+  using (auth.uid() = user_id);
+
+-- security definer so this can read user_moderation from inside that same
+-- table's own RLS policies without recursing - same pattern already used
+-- by notify_group_message()/notify_dm_message() above.
+create or replace function is_admin()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((select is_admin from user_moderation where user_id = auth.uid()), false);
+$$;
+
+drop policy if exists "Admins can view everyone's moderation status" on user_moderation;
+create policy "Admins can view everyone's moderation status"
+  on user_moderation for select
+  using (is_admin());
+
+drop policy if exists "Admins can insert moderation rows" on user_moderation;
+create policy "Admins can insert moderation rows"
+  on user_moderation for insert
+  with check (is_admin());
+
+drop policy if exists "Admins can update moderation status" on user_moderation;
+create policy "Admins can update moderation status"
+  on user_moderation for update
+  using (is_admin())
+  with check (is_admin());
+
+-- Lets the admin dashboard triage reports instead of just reading them.
+alter table reports add column if not exists status text not null default 'open'
+  check (status in ('open', 'resolved', 'dismissed'));
+
+drop policy if exists "Admins can view all reports" on reports;
+create policy "Admins can view all reports"
+  on reports for select
+  using (is_admin());
+
+drop policy if exists "Admins can update report status" on reports;
+create policy "Admins can update report status"
+  on reports for update
+  using (is_admin())
+  with check (is_admin());
+
+drop policy if exists "Admins can view contact messages" on contact_messages;
+create policy "Admins can view contact messages"
+  on contact_messages for select
+  using (is_admin());
+
+-- Aggregate counts only, never row access - keeps group_messages/dm_messages
+-- RLS completely untouched. Admins get a number on a stats tile without
+-- ever gaining broad read access to message content.
+create or replace function admin_stats()
+returns table (
+  total_users bigint,
+  total_sailings bigint,
+  total_group_messages bigint,
+  total_dm_messages bigint,
+  open_reports bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return query
+    select
+      (select count(*) from profiles),
+      (select count(distinct sailing_id) from joined_sailings),
+      (select count(*) from group_messages),
+      (select count(*) from dm_messages),
+      (select count(*) from reports where status = 'open');
+end;
+$$;
