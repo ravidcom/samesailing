@@ -360,6 +360,10 @@ create table if not exists user_moderation (
 
 alter table user_moderation enable row level security;
 
+-- create policy has no "if not exists"/"or replace" form, unlike the
+-- tables/functions above - drop-then-create keeps this block safe to
+-- run again (e.g. after an earlier partial run failed partway through).
+drop policy if exists "Users can view their own moderation status" on user_moderation;
 create policy "Users can view their own moderation status"
   on user_moderation for select
   using (auth.uid() = user_id);
@@ -377,14 +381,17 @@ as $$
   select coalesce((select is_admin from user_moderation where user_id = auth.uid()), false);
 $$;
 
+drop policy if exists "Admins can view everyone's moderation status" on user_moderation;
 create policy "Admins can view everyone's moderation status"
   on user_moderation for select
   using (is_admin());
 
+drop policy if exists "Admins can insert moderation rows" on user_moderation;
 create policy "Admins can insert moderation rows"
   on user_moderation for insert
   with check (is_admin());
 
+drop policy if exists "Admins can update moderation status" on user_moderation;
 create policy "Admins can update moderation status"
   on user_moderation for update
   using (is_admin())
@@ -394,15 +401,18 @@ create policy "Admins can update moderation status"
 alter table reports add column if not exists status text not null default 'open'
   check (status in ('open', 'resolved', 'dismissed'));
 
+drop policy if exists "Admins can view all reports" on reports;
 create policy "Admins can view all reports"
   on reports for select
   using (is_admin());
 
+drop policy if exists "Admins can update report status" on reports;
 create policy "Admins can update report status"
   on reports for update
   using (is_admin())
   with check (is_admin());
 
+drop policy if exists "Admins can view contact messages" on contact_messages;
 create policy "Admins can view contact messages"
   on contact_messages for select
   using (is_admin());
