@@ -45,9 +45,12 @@ export default function NavBar() {
               Dashboard
             </Link>
             {isAdmin ? (
+              // Unlike Chat/Dashboard, Admin has no equivalent in the mobile
+              // bottom tab bar, so it stays visible here at every width -
+              // hiding it below md would leave no way to reach it on mobile.
               <Link
                 href="/admin"
-                className="hidden rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:inline-block md:px-3 md:text-sm"
+                className="rounded-lg px-2 py-1.5 font-sans text-[13px] font-medium text-muted transition-all hover:bg-teal-tint hover:text-charcoal md:px-3 md:text-sm"
               >
                 Admin
               </Link>
