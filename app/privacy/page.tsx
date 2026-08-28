@@ -75,6 +75,15 @@ export default function PrivacyPage() {
         and we&apos;ll take care of it.
       </p>
 
+      <h2>Cookies and local storage</h2>
+      <p>
+        SameSailing.com uses only what&apos;s needed to keep you signed in
+        and remember your session on your device. We don&apos;t use
+        advertising or analytics trackers. If that ever changes, we&apos;ll
+        update this policy and ask for your consent where the law requires
+        it.
+      </p>
+
       <h2>Questions</h2>
       <p>
         Reach out any time through our{" "}
