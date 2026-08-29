@@ -57,9 +57,10 @@ export default function TermsPage() {
         <strong>anyone on the internet</strong>, including people without a
         SameSailing.com account, and may appear in search engine results.
         You decide how much to share: your account email is never shown to
-        anyone, and your real name is only shown if you choose real-name
-        mode instead of a nickname or an anonymous handle. Don&apos;t put
-        anything in your profile you wouldn&apos;t want publicly visible.
+        anyone, and your real name is only shown if you choose real-name mode
+        instead of a nickname — until you choose either, you&apos;re shown
+        under a generated handle. Don&apos;t put anything in your profile you
+        wouldn&apos;t want publicly visible.
       </p>
 
       <h2>Travel companions and children</h2>
