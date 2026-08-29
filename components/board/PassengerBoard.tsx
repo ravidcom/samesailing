@@ -14,6 +14,8 @@ import EditSailingProfileModal from "@/components/dashboard/EditSailingProfileMo
 import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
 import { CornerRibbon, BadgeExplainer } from "@/components/ui/PioneerBadge";
 import { badgeForRank, CREW_CARD_BORDER } from "@/lib/pioneer";
+import ShareInviteButton from "@/components/ui/ShareInviteButton";
+import { MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 
 const FILTERS: { id: "all" | PartyType; label: string }[] = [
   { id: "all", label: "All" },
@@ -95,9 +97,13 @@ function MatchLine({ cue }: { cue: MatchCue }) {
 
 export default function PassengerBoard({
   sailingId,
+  shipName,
+  dateLabel,
   passengers,
 }: {
   sailingId: string;
+  shipName: string;
+  dateLabel: string;
   passengers: Passenger[];
 }) {
   const { loggedIn, userId, mySailings } = useAuth();
@@ -209,6 +215,23 @@ export default function PassengerBoard({
 
       <div className="px-4 py-7 sm:px-8 md:px-12">
         <div className="mx-auto max-w-[1000px]">
+          {fullList.length < MIN_BROWSE_THRESHOLD ? (
+            <div className="mb-5 rounded-[16px] border-[1.5px] border-dashed border-teal-shadow bg-teal-tint px-5 py-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+              <div className="mb-3 sm:mb-0">
+                <div className="text-sm font-bold text-charcoal">You&apos;re one of the first aboard</div>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted">
+                  Know someone else on {shipName}? Invite them so the board doesn&apos;t feel so quiet.
+                </p>
+              </div>
+              <ShareInviteButton
+                url={`https://samesailing.com/sailing/${sailingId}`}
+                title="Join me on SameSailing.com"
+                text={`Join me on ${shipName} · ${dateLabel} - let's connect before we board!`}
+                label="Invite a traveler"
+                className="shrink-0 rounded-[11px] border-none bg-teal px-4 py-2.5 font-sans text-sm font-semibold whitespace-nowrap text-white transition-colors hover:bg-teal-dark"
+              />
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-[11px] sm:grid-cols-2 lg:grid-cols-3">
             {list.map((p) => {
               const isMe = p.id === userId;

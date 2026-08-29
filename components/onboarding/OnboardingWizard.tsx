@@ -302,7 +302,11 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
           />
         ) : null}
         {step === 5 ? (
-          <StepSuccess sailingLabel={sailingLabel} onGoToDashboard={() => router.push("/dashboard")} />
+          <StepSuccess
+            sailingLabel={sailingLabel}
+            sailingId={sailing?.id ?? null}
+            onGoToDashboard={() => router.push("/dashboard")}
+          />
         ) : null}
       </div>
     </div>

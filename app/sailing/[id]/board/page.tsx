@@ -92,7 +92,13 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
           </div>
         </div>
 
-        <PassengerBoard key={sailing.id} sailingId={sailing.id} passengers={passengers} />
+        <PassengerBoard
+          key={sailing.id}
+          sailingId={sailing.id}
+          shipName={sailing.shipName}
+          dateLabel={shortDateWithYear(sailing.date)}
+          passengers={passengers}
+        />
       </main>
     </>
   );
