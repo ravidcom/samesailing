@@ -321,6 +321,37 @@ function DayDivider({ label }: { label: string }) {
   );
 }
 
+/** Shown once ever per user, per chat kind - dismissing it is permanent,
+ * same "seen it, don't nag again" model as the other localStorage flags
+ * in this file. */
+function safetyNoticeSeenKey(userId: string, kind: "group" | "dm") {
+  return `samesailing:safetyNoticeSeen:${kind}:${userId}`;
+}
+function loadSafetyNoticeSeen(userId: string, kind: "group" | "dm"): boolean {
+  if (typeof window === "undefined") return true;
+  return localStorage.getItem(safetyNoticeSeenKey(userId, kind)) === "1";
+}
+function saveSafetyNoticeSeen(userId: string, kind: "group" | "dm") {
+  localStorage.setItem(safetyNoticeSeenKey(userId, kind), "1");
+}
+
+function SafetyNotice({ text, onDismiss }: { text: string; onDismiss: () => void }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-[14px] border-[1.5px] border-[#ffd9c9] bg-[#fff3eb] px-3.5 py-3 text-[12.5px] leading-relaxed text-[#8a5a3a]">
+      <span className="shrink-0">🛡️</span>
+      <p className="flex-1">{text}</p>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label="Dismiss"
+        className="shrink-0 text-[#c99a7a] transition-colors hover:text-[#8a5a3a]"
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
+
 /**
  * Keeps a message list pinned to the newest message: jumps to the bottom
  * whenever the conversation changes (resetKey) or a new message arrives
@@ -528,6 +559,30 @@ function ChatAppInner() {
   if (userId && userId !== readMapLoadedForUser) {
     setReadMapLoadedForUser(userId);
     setReadMap(loadReadMap(userId));
+  }
+
+  // First-time safety notices - one for group chat, one for DMs, each shown
+  // exactly once ever (until dismissed) regardless of how many sailings or
+  // threads the user has.
+  const [groupSafetyNoticeCheckedFor, setGroupSafetyNoticeCheckedFor] = useState<string | null>(null);
+  const [showGroupSafetyNotice, setShowGroupSafetyNotice] = useState(false);
+  if (userId && userId !== groupSafetyNoticeCheckedFor) {
+    setGroupSafetyNoticeCheckedFor(userId);
+    setShowGroupSafetyNotice(!loadSafetyNoticeSeen(userId, "group"));
+  }
+  const [dmSafetyNoticeCheckedFor, setDmSafetyNoticeCheckedFor] = useState<string | null>(null);
+  const [showDmSafetyNotice, setShowDmSafetyNotice] = useState(false);
+  if (userId && userId !== dmSafetyNoticeCheckedFor) {
+    setDmSafetyNoticeCheckedFor(userId);
+    setShowDmSafetyNotice(!loadSafetyNoticeSeen(userId, "dm"));
+  }
+  function dismissGroupSafetyNotice() {
+    setShowGroupSafetyNotice(false);
+    if (userId) saveSafetyNoticeSeen(userId, "group");
+  }
+  function dismissDmSafetyNotice() {
+    setShowDmSafetyNotice(false);
+    if (userId) saveSafetyNoticeSeen(userId, "dm");
   }
 
   // Picks the sailing chip that opens by default: whatever the user had
@@ -1143,6 +1198,15 @@ function ChatAppInner() {
             </Link>
           </div>
 
+          {showGroupSafetyNotice ? (
+            <div className="shrink-0 px-4.5 pt-3">
+              <SafetyNotice
+                text="Never share payment details, passwords, or financial info in the group chat - no legitimate reason ever requires it."
+                onDismiss={dismissGroupSafetyNotice}
+              />
+            </div>
+          ) : null}
+
           <div className="relative flex-1 overflow-hidden">
             <div ref={groupContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
               {groupMessages.map((m) => (
@@ -1232,6 +1296,15 @@ function ChatAppInner() {
               ← Group chat
             </button>
           </div>
+
+          {showDmSafetyNotice ? (
+            <div className="shrink-0 px-4.5 pt-3">
+              <SafetyNotice
+                text="Private messages are just between you two - but never send payment details, passwords, or financial info, even if asked."
+                onDismiss={dismissDmSafetyNotice}
+              />
+            </div>
+          ) : null}
 
           <div className="relative flex-1 overflow-hidden">
             <div ref={dmContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
