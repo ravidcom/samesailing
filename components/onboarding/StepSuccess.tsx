@@ -39,7 +39,7 @@ export default function StepSuccess({ sailingLabel, sailingId, onGoToDashboard }
             title="Join me on SameSailing.com"
             text={`Join me on ${sailingLabel} - let's connect before we board!`}
             label="Invite a fellow traveler"
-            className="w-full rounded-[11px] border-none bg-teal py-2.5 font-sans text-sm font-semibold text-white transition-colors hover:bg-teal-dark"
+            className="w-full rounded-[11px] border-[1.5px] border-teal bg-white px-4 py-2.5 font-sans text-sm font-semibold text-teal transition-colors hover:bg-teal hover:text-white"
           />
         </div>
       ) : null}

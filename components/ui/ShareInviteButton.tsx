@@ -64,7 +64,7 @@ export default function ShareInviteButton({
   }
 
   return (
-    <div className="relative inline-block" ref={menuRef}>
+    <div className="relative" ref={menuRef}>
       <button type="button" onClick={handleClick} className={className}>
         {copied ? copiedLabel : label}
       </button>
