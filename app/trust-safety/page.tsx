@@ -15,8 +15,9 @@ export default function TrustSafetyPage() {
       <ul>
         <li>
           Your email address is never shown to anyone, and your real name
-          only appears if you choose real-name mode — by default you appear
-          under a nickname or an anonymous handle.
+          only appears if you choose real-name mode — otherwise you pick a
+          nickname, or appear under a generated handle (like &ldquo;Coral
+          Family&rdquo;) until you do.
         </li>
         <li>
           Profiles show only what you choose to share — party type, age

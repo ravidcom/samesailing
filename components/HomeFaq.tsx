@@ -9,7 +9,7 @@ const FAQS = [
   },
   {
     q: "Will other passengers see my real name or contact details?",
-    a: "Only if you choose to. Your profile appears on your sailing's passenger board, but your email is never shown, and your real name only appears if you pick real-name mode - otherwise you're seen under a nickname or an anonymous handle.",
+    a: "Only if you choose to. Your profile appears on your sailing's passenger board, but your email is never shown, and your real name only appears if you pick real-name mode - otherwise you choose a nickname, or you're shown under a generated handle (like \"Coral Family\") until you do.",
   },
   {
     q: "How do I find my cruise's passenger board?",

@@ -32,8 +32,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           Your email address is never shown to anyone. Your real name is
-          only shown if you choose real-name mode — otherwise other people
-          see the nickname or anonymous handle you picked.
+          only shown if you choose real-name mode — otherwise you pick a
+          nickname, or appear under a generated handle until you do.
         </li>
         <li>
           Optional details you add — like children&apos;s ages in a family
