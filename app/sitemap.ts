@@ -10,6 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/privacy`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE_URL}/terms`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE_URL}/trust-safety`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${BASE_URL}/accessibility`, changeFrequency: "yearly", priority: 0.2 },
   ];
 
   const sailingIds = await getAllSailingIds();

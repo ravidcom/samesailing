@@ -20,6 +20,9 @@ export default function Footer() {
         <Link href="/trust-safety" className="hover:text-muted">
           Trust &amp; safety
         </Link>
+        <Link href="/accessibility" className="hover:text-muted">
+          Accessibility
+        </Link>
         <Link href="/contact" className="hover:text-muted">
           Contact
         </Link>
