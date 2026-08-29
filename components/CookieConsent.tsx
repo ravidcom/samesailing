@@ -61,8 +61,8 @@ export default function CookieConsent() {
         <div className="fixed inset-x-0 bottom-0 z-[250] border-t border-border bg-white px-4 py-3.5 shadow-[0_-8px_24px_rgba(0,0,0,.08)]">
           <div className="mx-auto flex max-w-[820px] flex-col items-center gap-3 sm:flex-row sm:justify-between">
             <p className="text-center text-[12.5px] leading-relaxed text-muted sm:text-left">
-              We use essential cookies to keep you signed in. With your consent, we&apos;d also like to use
-              analytics cookies to understand how the site is used.{" "}
+              We use essential cookies to keep SameSailing.com running smoothly. With your permission, we&apos;d also
+              love to use analytics — it helps us see what&apos;s working and keep improving the site for you.{" "}
               <a href="/privacy" className="font-semibold text-teal">
                 Learn more
               </a>
