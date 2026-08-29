@@ -50,10 +50,35 @@ export const viewport: Viewport = {
   themeColor: "#0e8c99",
 };
 
+// Organization + WebSite structured data, site-wide - this is what tells
+// Google "SameSailing" is the name of a specific entity (not just a phrase
+// in a title tag), which is what branded search results and sitelinks are
+// actually keyed off, not on-page copy alone.
+const ORGANIZATION_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "SameSailing",
+  alternateName: "SameSailing.com",
+  url: "https://samesailing.com",
+  logo: "https://samesailing.com/icons/512",
+};
+
+const WEBSITE_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "SameSailing",
+  url: "https://samesailing.com",
+};
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${bricolage.variable} ${hanken.variable}`}>
       <body className="min-h-screen">
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(ORGANIZATION_JSON_LD) }}
+        />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSON_LD) }} />
         <Providers>{children}</Providers>
       </body>
     </html>
