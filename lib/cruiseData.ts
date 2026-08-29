@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import fallbackRaw from "./data/royal-caribbean-sailings.json";
+import { isSailingSearchable } from "./dateMath";
 
 /**
  * Server-only module: sailing data (~3,400+ records, multiple cruise lines)
@@ -223,11 +224,18 @@ export async function getCruiseLineNames(): Promise<string[]> {
   return Object.keys(cruiseLines).sort((a, b) => a.localeCompare(b));
 }
 
-/** Every sailing id across every line/ship, flattened - for the sitemap. */
+/** Every still-searchable sailing id across every line/ship, flattened - for
+ * the sitemap. Excludes sailings that have already departed (past their
+ * isSailingSearchable() cutoff) - the same filter already applied to the
+ * homepage's search dropdown (getShipsForLine/getDatesForShip), so a sailing
+ * disappears from both places at once instead of lingering, indexed, in
+ * search results after it's no longer discoverable on the site itself. */
 export async function getAllSailingIds(): Promise<string[]> {
   const cruiseLines = await getCruiseLines();
   return Object.values(cruiseLines).flatMap((ships) =>
-    ships.flatMap((ship) => ship.dates.map((date) => date.id))
+    ships.flatMap((ship) =>
+      ship.dates.filter((date) => isSailingSearchable(date.isoDate, date.nights)).map((date) => date.id)
+    )
   );
 }
 
