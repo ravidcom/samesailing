@@ -6,7 +6,7 @@ const PARTY_OPTIONS: { t: PartyType; icon: string; label: string }[] = [
   { t: "family", icon: "👨‍👩‍👧‍👦", label: "Family with kids" },
   { t: "couple", icon: "💑", label: "Couple" },
   { t: "solo", icon: "🧑", label: "Solo traveler" },
-  { t: "friends", icon: "🎉", label: "Friends group" },
+  { t: "friends", icon: "👯", label: "Friends group" },
 ];
 
 const AGE_BANDS = ["18-24", "25-34", "35-44", "45-54", "55-64", "65+"];

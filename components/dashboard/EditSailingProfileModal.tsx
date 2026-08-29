@@ -11,7 +11,7 @@ const PARTY_AVATARS: Record<PartyType, string> = {
   family: "👨‍👩‍👧‍👦",
   couple: "💑",
   solo: "🧑",
-  friends: "🎉",
+  friends: "👯",
 };
 
 function soloIcon(gender: string | null) {
