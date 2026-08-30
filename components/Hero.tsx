@@ -32,18 +32,18 @@ export default function Hero() {
       <div className="flex flex-wrap justify-center gap-6 pt-[30px] pb-1 sm:gap-10 md:gap-[52px]">
         <div>
           <div className="mb-0.5 font-display text-[27px] font-bold text-teal">
-            1,240+
+            Founding
           </div>
           <div className="text-xs font-medium text-muted-2">
-            Travelers connected
+            Be one of the first aboard
           </div>
         </div>
         <div>
           <div className="mb-0.5 font-display text-[27px] font-bold text-teal">
-            38
+            Free
           </div>
           <div className="text-xs font-medium text-muted-2">
-            Active sailings
+            Always free to join
           </div>
         </div>
         <div>
