@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import LogoMark from "./LogoMark";
+import Avatar from "./ui/Avatar";
 import { useAuth } from "@/lib/auth-context";
 
 function ShareIcon() {
@@ -160,9 +161,7 @@ export default function NavBar() {
                     menuOpen ? "border-teal" : "border-border"
                   } hover:border-teal`}
                 >
-                  <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full bg-[#fdeadf] text-[15px]">
-                    {user?.avatar}
-                  </span>
+                  <Avatar emoji={user?.avatar} tint={user?.avatarTint} size={30} />
                   <span className="max-w-[110px] truncate text-sm font-semibold text-charcoal">{user?.name}</span>
                 </button>
 

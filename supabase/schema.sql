@@ -10,7 +10,9 @@ create table if not exists profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   name text not null,
   country text not null default '',
-  avatar text not null default '😊',
+  avatar text not null default '🧑',
+  -- Avatars v1: a key into the fixed AV_TINTS palette (lib/avatars.ts).
+  avatar_tint text not null default 'peach',
   notify_digest boolean not null default true,
   notify_dm_alerts boolean not null default true,
   name_mode text not null default 'anon' check (name_mode in ('anon', 'nick', 'real')),
@@ -591,3 +593,10 @@ begin
       (select count(*) from account_deletions);
 end;
 $$;
+
+-- Avatars v1: an account-level emoji + background tint (lib/avatars.ts),
+-- chosen from My profile only - replaces the party-type-derived emoji that
+-- used to double as the passenger card's avatar. `avatar` already existed;
+-- `avatar_tint` is new. Existing rows get 'peach', matching the emoji
+-- default they already had.
+alter table profiles add column if not exists avatar_tint text not null default 'peach';

@@ -53,11 +53,12 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
     (r): r is { user_id: string; profile: OnboardingProfile; join_rank: number | null } => !!r.profile
   );
 
-  // Display names are account-level (lib/displayName.ts), not stored in the
-  // per-sailing profile, so they need a separate join against `profiles`.
+  // Display names and avatars are account-level (lib/displayName.ts,
+  // lib/avatars.ts), not stored in the per-sailing profile, so they need a
+  // separate join against `profiles`.
   const { data: nameRows } = await supabase
     .from("profiles")
-    .select("id,name,name_mode,nickname")
+    .select("id,name,name_mode,nickname,avatar,avatar_tint")
     .in(
       "id",
       joined.map((r) => r.user_id)
@@ -69,7 +70,8 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
     const nameFields = n
       ? { nameMode: n.name_mode, nickname: n.nickname, name: n.name }
       : null;
-    return passengerFromProfile(r.user_id, r.profile, nameFields, r.join_rank);
+    const avatarFields = n ? { avatar: n.avatar, avatarTint: n.avatar_tint } : null;
+    return passengerFromProfile(r.user_id, r.profile, nameFields, r.join_rank, avatarFields);
   });
 
   const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);

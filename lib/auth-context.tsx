@@ -11,6 +11,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "./supabase/client";
 import { resolveDisplayName, type NameMode } from "./displayName";
+import { sanitizeAvatar, isValidAvatar, DEFAULT_AVATAR_EMOJI, DEFAULT_AVATAR_TINT } from "./avatars";
 
 export type PartyType = "family" | "couple" | "solo" | "friends";
 
@@ -43,7 +44,7 @@ export type JoinedSailing = {
  * insert's trigger assigns it, so it can't be part of an outgoing request. */
 export type NewSailingJoin = Omit<JoinedSailing, "joinRank">;
 
-export type AuthUser = { name: string; email: string; avatar: string };
+export type AuthUser = { name: string; email: string; avatar: string; avatarTint: string };
 
 type SignUpInput = {
   name: string;
@@ -83,6 +84,7 @@ type AuthContextValue = {
   updateSailingProfile: (sailingId: string, profile: OnboardingProfile) => Promise<{ error?: string }>;
   removeSailing: (sailingId: string) => Promise<void>;
   updateAccount: (patch: { nameMode?: NameMode; nickname?: string }) => Promise<void>;
+  updateAvatar: (emoji: string, tint: string) => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateNotificationSettings: (patch: Partial<NotificationSettings>) => Promise<void>;
   signOut: () => Promise<void>;
@@ -96,13 +98,14 @@ type ProfileRow = {
   name: string;
   country: string;
   avatar: string;
+  avatar_tint: string;
   notify_digest: boolean;
   notify_dm_alerts: boolean;
   name_mode: NameMode;
   nickname: string;
 };
 
-const PROFILE_COLUMNS = "id,name,country,avatar,notify_digest,notify_dm_alerts,name_mode,nickname";
+const PROFILE_COLUMNS = "id,name,country,avatar,avatar_tint,notify_digest,notify_dm_alerts,name_mode,nickname";
 type JoinedSailingRow = {
   sailing_id: string;
   line: string;
@@ -267,11 +270,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const userId = data.user.id;
+    // The avatar is chosen in My profile, never during signup - onboarding's
+    // party-derived emoji only sticks here if it happens to be a valid
+    // account avatar (single codepoint, in one of the avatar sets), which
+    // most aren't (couple/family use ZWJ sequences). Otherwise this quietly
+    // falls back to the real default instead of looking like a choice.
+    const sanitized = sanitizeAvatar(avatar, "peach");
     const { error: profileError } = await supabase.from("profiles").insert({
       id: userId,
       name,
       country,
-      avatar,
+      avatar: sanitized.emoji,
+      avatar_tint: sanitized.tint,
       name_mode: nameMode ?? "anon",
       nickname: nickname ?? "",
     });
@@ -377,6 +387,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (data) setProfile(data);
   }
 
+  async function updateAvatar(emoji: string, tint: string) {
+    if (!authUser) return { error: "You need to be signed in." };
+    if (!isValidAvatar(emoji, tint)) return { error: "That avatar isn't available." };
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({ avatar: emoji, avatar_tint: tint })
+      .eq("id", authUser.id)
+      .select(PROFILE_COLUMNS)
+      .maybeSingle();
+    if (error) return { error: error.message };
+    if (data) setProfile(data);
+    return {};
+  }
+
   async function updateNotificationSettings(patch: Partial<NotificationSettings>) {
     if (!authUser) return;
     const dbPatch: Partial<Pick<ProfileRow, "notify_digest" | "notify_dm_alerts">> = {};
@@ -415,7 +439,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loggedIn: !!authUser,
     userId: authUser?.id ?? null,
     user: authUser
-      ? { name: profile?.name ?? "Traveler", email: authUser.email ?? "-", avatar: profile?.avatar ?? "😊" }
+      ? {
+          name: profile?.name ?? "Traveler",
+          email: authUser.email ?? "-",
+          avatar: profile?.avatar ?? DEFAULT_AVATAR_EMOJI,
+          avatarTint: profile?.avatar_tint ?? DEFAULT_AVATAR_TINT,
+        }
       : null,
     hasPassword: authUser?.app_metadata?.provider === "email",
     isAdmin,
@@ -438,6 +467,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     updateSailingProfile,
     removeSailing,
     updateAccount,
+    updateAvatar,
     updatePassword,
     updateNotificationSettings,
     signOut,
