@@ -237,13 +237,16 @@ function MessageBubble({
   msg,
   deletable,
   onDelete,
+  isAdmin,
   badge,
   onMessageSender,
   onReport,
 }: {
   msg: ChatMessage;
   deletable?: boolean;
-  onDelete?: (id: string) => void;
+  onDelete?: (id: string, mine: boolean) => void;
+  /** Lets an admin delete anyone's message, not just their own. */
+  isAdmin?: boolean;
   badge?: Badge | null;
   /** Only meaningful for group messages - DM bubbles already know who they're with. */
   onMessageSender?: (senderId: string) => void;
@@ -270,10 +273,10 @@ function MessageBubble({
       <div
         className={`mb-1 flex items-center gap-2 text-[11px] font-semibold ${msg.mine ? "justify-end pr-0.5 text-muted-2" : "pl-0.5 text-teal"}`}
       >
-        {msg.mine && deletable && onDelete ? (
+        {(msg.mine || isAdmin) && deletable && onDelete ? (
           <button
             type="button"
-            onClick={() => onDelete(msg.id)}
+            onClick={() => onDelete(msg.id, msg.mine)}
             className="text-[10px] font-normal text-muted-2 underline decoration-dotted hover:text-coral"
           >
             Delete
@@ -451,7 +454,7 @@ export default function ChatApp() {
 }
 
 function ChatAppInner() {
-  const { loading, loggedIn, mySailings, userId, markChatSeen, myDisplayName } = useAuth();
+  const { loading, loggedIn, mySailings, userId, isAdmin, markChatSeen, myDisplayName } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -947,9 +950,14 @@ function ChatAppInner() {
     });
   }
 
-  async function deleteGroupMessage(id: string) {
+  async function deleteGroupMessage(id: string, mine: boolean) {
     if (!userId) return;
-    await supabase.from("group_messages").update({ deleted: true }).eq("id", id).eq("user_id", userId);
+    if (mine) {
+      await supabase.from("group_messages").update({ deleted: true }).eq("id", id).eq("user_id", userId);
+    } else {
+      if (!isAdmin) return;
+      await supabase.rpc("admin_delete_message", { message_kind: "group_message", message_id: id });
+    }
     setRealGroupMsgs((prev) => prev.map((m) => (m.id === id ? { ...m, deleted: true, body: "" } : m)));
   }
 
@@ -967,9 +975,14 @@ function ChatAppInner() {
     fetchDmThreads(supabase, activeSailing.id, userId).then(setDmThreads);
   }
 
-  async function deleteDmMessage(id: string) {
+  async function deleteDmMessage(id: string, mine: boolean) {
     if (!userId) return;
-    await supabase.from("dm_messages").update({ deleted: true }).eq("id", id).eq("sender_id", userId);
+    if (mine) {
+      await supabase.from("dm_messages").update({ deleted: true }).eq("id", id).eq("sender_id", userId);
+    } else {
+      if (!isAdmin) return;
+      await supabase.rpc("admin_delete_message", { message_kind: "dm_message", message_id: id });
+    }
     setDmMessages((prev) => prev.map((m) => (m.id === id ? { ...m, deleted: true, body: "" } : m)));
     if (activeSailing) {
       fetchDmThreads(supabase, activeSailing.id, userId).then(setDmThreads);
@@ -1221,6 +1234,7 @@ function ChatAppInner() {
                     msg={m}
                     deletable={realIds.has(m.id)}
                     onDelete={deleteGroupMessage}
+                    isAdmin={isAdmin}
                     badge={m.userId ? badgeForRank(memberJoinRanks[m.userId]) : null}
                     onMessageSender={openDmWithSender}
                     onReport={reportGroupMessage}
@@ -1318,8 +1332,9 @@ function ChatAppInner() {
                 <MessageBubble
                   key={m.id}
                   msg={m}
-                  deletable={m.mine}
+                  deletable={m.mine || isAdmin}
                   onDelete={deleteDmMessage}
+                  isAdmin={isAdmin}
                   onReport={reportDmMessage}
                 />
               ))}

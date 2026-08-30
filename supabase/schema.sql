@@ -600,3 +600,93 @@ $$;
 -- `avatar_tint` is new. Existing rows get 'peach', matching the emoji
 -- default they already had.
 alter table profiles add column if not exists avatar_tint text not null default 'peach';
+
+-- New-users count for an arbitrary date range, powering the admin
+-- dashboard's "New users" range picker (replaces the four fixed
+-- admin_new_users() tiles with a single count for whatever range is
+-- selected, including a custom start/end). admin_new_users() itself is
+-- left in place rather than dropped - still valid, just unused by the UI.
+create or replace function admin_new_users_range(range_start timestamptz, range_end timestamptz)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return (select count(*) from profiles where created_at >= range_start and created_at < range_end);
+end;
+$$;
+
+-- Per-user chat activity (aggregate only, no message content), for the
+-- admin Users tab's "most active" / "most messages" sorts. Combines group
+-- + DM messages the user has SENT; group_messages uses `user_id` for the
+-- sender column, dm_messages uses `sender_id` (a pre-existing naming
+-- difference between the two tables, not introduced here).
+create or replace function admin_user_activity()
+returns table (
+  user_id uuid,
+  message_count bigint,
+  message_count_7d bigint
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return query
+    select
+      a.sender as user_id,
+      sum(a.cnt)::bigint as message_count,
+      sum(a.cnt_7d)::bigint as message_count_7d
+    from (
+      select
+        gm.user_id as sender,
+        count(*) as cnt,
+        count(*) filter (where gm.created_at >= now() - interval '7 days') as cnt_7d
+      from group_messages gm
+      group by gm.user_id
+      union all
+      select
+        dm.sender_id as sender,
+        count(*) as cnt,
+        count(*) filter (where dm.created_at >= now() - interval '7 days') as cnt_7d
+      from dm_messages dm
+      group by dm.sender_id
+    ) a
+    group by a.sender;
+end;
+$$;
+
+-- Lets an admin soft-delete any message - either from the reported-message
+-- button on the admin Reports tab (bypasses RLS entirely via message_id, so
+-- it works even for a DM thread the admin isn't part of) or from the admin
+-- "Delete" button now shown on any message inside a chat they can already
+-- see. Reuses the same `deleted` flag and soft-delete semantics as a user
+-- deleting their own message - the row stays, the body just renders as
+-- "Message removed". message_kind matches reports.message_kind's own
+-- values so callers can pass a report row's field straight through.
+create or replace function admin_delete_message(message_kind text, message_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  if message_kind = 'group_message' then
+    update group_messages set deleted = true where id = message_id;
+  elsif message_kind = 'dm_message' then
+    update dm_messages set deleted = true where id = message_id;
+  else
+    raise exception 'invalid message kind: %', message_kind;
+  end if;
+end;
+$$;

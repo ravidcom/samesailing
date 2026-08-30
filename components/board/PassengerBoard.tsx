@@ -57,7 +57,7 @@ function NameSubtitle({ p }: { p: Passenger }) {
           that the avatar is user-chosen rather than doubling as that signal -
           the pride bar earns this line because it's the person speaking. */}
       <div className="flex items-center gap-1.5 text-[16.5px] leading-[1.2] font-bold text-charcoal">
-        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{p.name}</span>
+        <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{p.name}</span>
         {p.anon ? (
           <span className="shrink-0 rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
             Anon
