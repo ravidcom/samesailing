@@ -15,6 +15,8 @@ import { badgeForRank, type Badge } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
 import InstallAppButton from "@/components/ui/InstallAppButton";
 import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
+import Avatar from "@/components/ui/Avatar";
+import { sanitizeAvatar, DEFAULT_AVATAR_EMOJI, DEFAULT_AVATAR_TINT } from "@/lib/avatars";
 
 type GroupMessageRow = {
   id: string;
@@ -42,7 +44,8 @@ type DmThreadSummary = {
   label: string;
   anon: boolean;
   joinRank: number | null;
-  avatar: string;
+  avatarEmoji: string;
+  avatarTint: string;
   preview: string;
   timeLabel: string;
   sortKey: number;
@@ -120,7 +123,7 @@ async function fetchDmThreads(
       .select("user_id,profile,join_rank")
       .eq("sailing_id", sailingId)
       .in("user_id", otherIds),
-    supabase.from("profiles").select("id,name,name_mode,nickname").in("id", otherIds),
+    supabase.from("profiles").select("id,name,name_mode,nickname,avatar,avatar_tint").in("id", otherIds),
     supabase
       .from("dm_messages")
       .select("thread_id,sender_id,body,deleted,created_at")
@@ -138,6 +141,9 @@ async function fetchDmThreads(
       { nameMode: r.name_mode, nickname: r.nickname, name: r.name } as NameFields,
     ])
   );
+  // Avatar is account-level (My profile), not the per-sailing profile's
+  // party-derived one - same profiles row as the name fields above.
+  const avatarByUser = new Map((nameRows ?? []).map((r) => [r.id, sanitizeAvatar(r.avatar, r.avatar_tint)]));
   const lastByThread = new Map<string, { sender_id: string; body: string; deleted: boolean; created_at: string }>();
   const otherTimestampsByThread = new Map<string, number[]>();
   for (const m of lastMsgs ?? []) {
@@ -161,7 +167,8 @@ async function fetchDmThreads(
         label: resolved.name,
         anon: resolved.anon,
         joinRank: joinRankByUser.get(otherId) ?? null,
-        avatar: profile?.avatar ?? "🙂",
+        avatarEmoji: avatarByUser.get(otherId)?.emoji ?? DEFAULT_AVATAR_EMOJI,
+        avatarTint: avatarByUser.get(otherId)?.tint ?? DEFAULT_AVATAR_TINT,
         preview: last ? (last.deleted ? "Message removed" : last.body) : "Say hello!",
         timeLabel: last ? chatListTimeLabel(new Date(last.created_at).getTime()) : "",
         sortKey: last ? new Date(last.created_at).getTime() : 0,
@@ -1134,9 +1141,7 @@ function ChatAppInner() {
                       pane.type === "dm" && pane.id === t.id ? "bg-input" : ""
                     }`}
                   >
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#f2f7f7] text-[23px]">
-                      {t.avatar}
-                    </span>
+                    <Avatar emoji={t.avatarEmoji} tint={t.avatarTint} size={48} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 truncate text-[15.5px] font-bold leading-[1.25] text-charcoal">
                         <span className="truncate">{t.label}</span>

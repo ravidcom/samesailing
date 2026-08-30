@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import Avatar from "@/components/ui/Avatar";
 
 type UserRow = {
   id: string;
   name: string;
   avatar: string;
+  avatarTint: string;
   country: string;
   sailingCount: number;
   isAdmin: boolean;
@@ -24,7 +26,7 @@ export default function AdminUsersPanel() {
     let cancelled = false;
     const supabase = createClient();
     Promise.all([
-      supabase.from("profiles").select("id,name,avatar,country"),
+      supabase.from("profiles").select("id,name,avatar,avatar_tint,country"),
       supabase.from("joined_sailings").select("user_id"),
       supabase.from("user_moderation").select("user_id,is_admin,banned"),
     ]).then(([{ data: profiles }, { data: sailings }, { data: moderation }]) => {
@@ -40,6 +42,7 @@ export default function AdminUsersPanel() {
           id: p.id,
           name: p.name,
           avatar: p.avatar,
+          avatarTint: p.avatar_tint,
           country: p.country,
           sailingCount: sailingCounts.get(p.id) ?? 0,
           isAdmin: moderationByUser.get(p.id)?.is_admin ?? false,
@@ -84,9 +87,7 @@ export default function AdminUsersPanel() {
             key={u.id}
             className={`flex items-center gap-3 px-4 py-3 ${i < filtered.length - 1 ? "border-b border-border" : ""}`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f2f7f7] text-lg">
-              {u.avatar}
-            </span>
+            <Avatar emoji={u.avatar} tint={u.avatarTint} size={36} />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 text-sm font-semibold text-charcoal">
                 <span className="truncate">{u.name}</span>

@@ -2,12 +2,13 @@ import type { OnboardingProfile, PartyType } from "./auth-context";
 import { PARTY_LABELS } from "./partyLabels";
 import { GOALS } from "./goals";
 import { resolveDisplayName, type NameFields } from "./displayName";
+import { sanitizeAvatar } from "./avatars";
 
 export type Passenger = {
   id: string;
   t: PartyType;
-  av: string;
-  avBg: string;
+  avatarEmoji: string;
+  avatarTint: string;
   name: string;
   anon: boolean;
   who: string;
@@ -21,26 +22,25 @@ export type Passenger = {
   joinRank: number | null;
 };
 
-const AVATAR_BG: Record<PartyType, string> = {
-  family: "#dff1f2",
-  couple: "#fff3eb",
-  solo: "#fff3eb",
-  friends: "#fff3eb",
-};
-
-/** Builds a passenger card from a real joined_sailings row's stored profile. */
+/** Builds a passenger card from a real joined_sailings row's stored profile.
+ * The avatar is account-level (My profile), not part of the per-sailing
+ * profile - avatarFields comes from a separate `profiles` lookup, same as
+ * nameFields, and sanitizeAvatar() re-validates it here since a stored row
+ * could in principle predate the current emoji/tint sets. */
 export function passengerFromProfile(
   id: string,
   profile: OnboardingProfile,
   nameFields?: NameFields | null,
-  joinRank: number | null = null
+  joinRank: number | null = null,
+  avatarFields?: { avatar: string; avatarTint: string } | null
 ): Passenger {
   const { name, anon } = resolveDisplayName(id, profile.partyType, nameFields);
+  const { emoji, tint } = sanitizeAvatar(avatarFields?.avatar, avatarFields?.avatarTint);
   return {
     id,
     t: profile.partyType,
-    av: profile.avatar,
-    avBg: AVATAR_BG[profile.partyType] ?? "#dff1f2",
+    avatarEmoji: emoji,
+    avatarTint: tint,
     name,
     anon,
     who: PARTY_LABELS[profile.partyType],

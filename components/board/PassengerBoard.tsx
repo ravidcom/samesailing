@@ -8,6 +8,8 @@ import type { Passenger } from "@/lib/passengers";
 import { matchCue, type MatchCue } from "@/lib/matchCue";
 import { flagUrl } from "@/lib/countryCodes";
 import PrideStripe from "@/components/ui/PrideStripe";
+import Avatar from "@/components/ui/Avatar";
+import { PARTY_ICON } from "@/lib/partyLabels";
 import Toggle from "@/components/ui/Toggle";
 import Modal from "@/components/ui/Modal";
 import EditSailingProfileModal from "@/components/dashboard/EditSailingProfileModal";
@@ -51,20 +53,24 @@ function NameSubtitle({ p }: { p: Passenger }) {
   const partyAndAge = p.ageLabel ? `${p.who}, ${p.ageLabel}` : p.who;
   return (
     <>
+      {/* Name line: who they are. Party type moved to the subline below now
+          that the avatar is user-chosen rather than doubling as that signal -
+          the pride bar earns this line because it's the person speaking. */}
       <div className="flex items-center gap-1.5 text-[16.5px] leading-[1.2] font-bold text-charcoal">
-        {p.name}
+        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{p.name}</span>
         {p.anon ? (
-          <span className="rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
+          <span className="shrink-0 rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
             Anon
           </span>
         ) : null}
         {p.lgbtq ? (
-          <span title="LGBTQ+ community">
-            <PrideStripe />
+          <span title="LGBTQ+ member" className="shrink-0">
+            <PrideStripe className="h-[15px] w-[23px]" outlined />
           </span>
         ) : null}
       </div>
       <div className="mt-[3px] flex items-center gap-1 text-[12.5px] leading-[1.4] text-muted-2">
+        <span className="shrink-0 text-[13px] leading-none">{PARTY_ICON[p.t]}</span>
         <span>{partyAndAge}</span>
         {p.country ? (
           <span className="flex items-center gap-1">
@@ -262,13 +268,15 @@ export default function PassengerBoard({
                   ) : null}
                   <div className={`flex items-center gap-3 ${badge ? "mt-4" : ""}`}>
                     <div
-                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[23px]"
+                      className="shrink-0 rounded-full"
                       style={{
-                        background: p.avBg,
-                        boxShadow: badge && badge.tier !== "crew" ? `0 0 0 2.5px ${badge.frame}` : undefined,
+                        boxShadow:
+                          badge && badge.tier !== "crew"
+                            ? `0 0 0 2.5px ${badge.frame}`
+                            : "0 0 0 2px #fff, 0 0 0 3px #e7f1f2",
                       }}
                     >
-                      {p.av}
+                      <Avatar emoji={p.avatarEmoji} tint={p.avatarTint} size={48} />
                     </div>
                     <div className="min-w-0 flex-1" style={badge ? { paddingRight: badge.cardPaddingRightPx } : undefined}>
                       <NameSubtitle p={p} />
@@ -349,11 +357,8 @@ export default function PassengerBoard({
         {sheetPassenger ? (
           <div>
             <div className="flex items-center gap-3">
-              <div
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[23px]"
-                style={{ background: sheetPassenger.avBg }}
-              >
-                {sheetPassenger.av}
+              <div className="shrink-0 rounded-full" style={{ boxShadow: "0 0 0 2px #fff, 0 0 0 3px #e7f1f2" }}>
+                <Avatar emoji={sheetPassenger.avatarEmoji} tint={sheetPassenger.avatarTint} size={48} />
               </div>
               <div className="min-w-0 flex-1">
                 <NameSubtitle p={sheetPassenger} />

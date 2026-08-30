@@ -8,17 +8,31 @@ import NameModePicker from "@/components/NameModePicker";
 import NotificationSettings from "@/components/dashboard/NotificationSettings";
 import InstallAppButton from "@/components/ui/InstallAppButton";
 import Modal from "@/components/ui/Modal";
+import Avatar from "@/components/ui/Avatar";
+import AvatarPickerModal from "@/components/profile/AvatarPickerModal";
 import { useAuth } from "@/lib/auth-context";
 import type { NameMode } from "@/lib/displayName";
 import { fieldLabel, textInput, errorText } from "@/lib/formStyles";
 
 export default function ProfilePage() {
-  const { loading, loggedIn, user, country, hasPassword, nameMode, nickname, updateAccount, updatePassword, deleteAccount } =
-    useAuth();
+  const {
+    loading,
+    loggedIn,
+    user,
+    country,
+    hasPassword,
+    nameMode,
+    nickname,
+    updateAccount,
+    updateAvatar,
+    updatePassword,
+    deleteAccount,
+  } = useAuth();
   const router = useRouter();
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   // "anon" is a legacy value from before the picker dropped that option —
   // treat it the same as never having chosen, so the picker always shows
   // one of the two remaining options selected instead of neither.
@@ -60,6 +74,11 @@ export default function ProfilePage() {
     setNewPassword("");
     setConfirmPassword("");
     setPasswordSaved(true);
+  }
+
+  async function handleSaveAvatar(emoji: string, tint: string) {
+    await updateAvatar(emoji, tint);
+    setAvatarModalOpen(false);
   }
 
   async function confirmDelete() {
@@ -108,6 +127,23 @@ export default function ProfilePage() {
       <main className="mx-auto max-w-[480px] px-4 pt-[100px] pb-16">
         <div className="mb-1 font-display text-xl font-bold text-charcoal">My profile</div>
         <div className="mb-6 text-sm text-muted-2">Details that stay the same across all your sailings.</div>
+
+        <div className="mb-6 flex items-center gap-[15px] rounded-2xl border-[1.5px] border-[#dceaeb] bg-white px-4 py-3.5">
+          <div className="shrink-0 rounded-full" style={{ boxShadow: "0 0 0 2.5px #fff, 0 0 0 4px #d8ebec" }}>
+            <Avatar emoji={user?.avatar} tint={user?.avatarTint} size={60} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-[11px] font-semibold tracking-[.07em] text-muted-2 uppercase">My avatar</div>
+            <div className="text-sm text-muted">Other travelers on your sailings see this.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAvatarModalOpen(true)}
+            className="shrink-0 rounded-full border-[1.5px] border-[#c5e2e4] bg-input px-4 py-2 font-sans text-[13.5px] font-semibold whitespace-nowrap text-teal-dark transition-colors hover:border-teal hover:bg-[#e9f6f7]"
+          >
+            Edit
+          </button>
+        </div>
 
         <label className={fieldLabel}>First name</label>
         <input className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"} value={user?.name ?? ""} disabled />
@@ -226,6 +262,16 @@ export default function ProfilePage() {
           </button>
         </div>
       </Modal>
+
+      {avatarModalOpen ? (
+        <AvatarPickerModal
+          currentEmoji={user?.avatar ?? "🧑"}
+          currentTint={user?.avatarTint ?? "peach"}
+          displayName={user?.name ?? "Traveler"}
+          onCancel={() => setAvatarModalOpen(false)}
+          onSave={handleSaveAvatar}
+        />
+      ) : null}
     </>
   );
 }
