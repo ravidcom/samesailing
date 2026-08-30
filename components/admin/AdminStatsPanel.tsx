@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { selectInput, textInput } from "@/lib/formStyles";
 
 type Stats = {
   total_users: number;
@@ -11,13 +12,6 @@ type Stats = {
   total_dm_messages: number;
   open_reports: number;
   total_account_deletions: number;
-};
-
-type NewUsers = {
-  today: number;
-  yesterday: number;
-  last_7_days: number;
-  last_30_days: number;
 };
 
 type PopularSailing = {
@@ -37,14 +31,49 @@ const TILES: { key: keyof Stats; label: string }[] = [
   { key: "total_account_deletions", label: "Accounts deleted" },
 ];
 
-const NEW_USER_TILES: { key: keyof NewUsers; label: string }[] = [
+type RangePreset = "today" | "yesterday" | "7" | "14" | "28" | "custom";
+
+const RANGE_PRESETS: { key: RangePreset; label: string }[] = [
   { key: "today", label: "Today" },
   { key: "yesterday", label: "Yesterday" },
-  { key: "last_7_days", label: "Last 7 days" },
-  { key: "last_30_days", label: "Last 30 days" },
+  { key: "7", label: "Last 7 days" },
+  { key: "14", label: "Last 14 days" },
+  { key: "28", label: "Last 28 days" },
+  { key: "custom", label: "Custom range" },
 ];
 
-function StatTile({ value, label }: { value: number; label: string }) {
+/** Returns null only for "custom" before both dates are filled in - every
+ * other preset always resolves. `end` is exclusive throughout. */
+function resolveRange(
+  preset: RangePreset,
+  customStart: string,
+  customEnd: string
+): { start: Date; end: Date } | null {
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (preset) {
+    case "today":
+      return { start: startOfToday, end: now };
+    case "yesterday": {
+      const start = new Date(startOfToday);
+      start.setDate(start.getDate() - 1);
+      return { start, end: startOfToday };
+    }
+    case "7":
+    case "14":
+    case "28":
+      return { start: new Date(now.getTime() - Number(preset) * 86400000), end: now };
+    case "custom": {
+      if (!customStart || !customEnd) return null;
+      const start = new Date(`${customStart}T00:00:00`);
+      const end = new Date(`${customEnd}T00:00:00`);
+      end.setDate(end.getDate() + 1); // the end date is inclusive
+      return { start, end };
+    }
+  }
+}
+
+function StatTile({ value, label }: { value: number | "…"; label: string }) {
   return (
     <div className="rounded-[16px] border border-[#e4f0f1] bg-white p-4">
       <div className="font-display text-2xl font-bold text-charcoal">{value}</div>
@@ -55,35 +84,64 @@ function StatTile({ value, label }: { value: number; label: string }) {
 
 export default function AdminStatsPanel() {
   const [stats, setStats] = useState<Stats | null>(null);
-  const [newUsers, setNewUsers] = useState<NewUsers | null>(null);
   const [sailings, setSailings] = useState<PopularSailing[] | null>(null);
   const [error, setError] = useState("");
+
+  const [rangePreset, setRangePreset] = useState<RangePreset>("today");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [newUsersCount, setNewUsersCount] = useState<number | null>(null);
+  const [newUsersFetchedKey, setNewUsersFetchedKey] = useState<string | null>(null);
+  const [newUsersError, setNewUsersError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
     const supabase = createClient();
-    Promise.all([
-      supabase.rpc("admin_stats").single(),
-      supabase.rpc("admin_new_users").single(),
-      supabase.rpc("admin_popular_sailings"),
-    ]).then(([statsRes, newUsersRes, sailingsRes]) => {
-      if (cancelled) return;
-      const firstError = statsRes.error ?? newUsersRes.error ?? sailingsRes.error;
-      if (firstError) {
-        setError(firstError.message);
-        return;
+    Promise.all([supabase.rpc("admin_stats").single(), supabase.rpc("admin_popular_sailings")]).then(
+      ([statsRes, sailingsRes]) => {
+        if (cancelled) return;
+        const firstError = statsRes.error ?? sailingsRes.error;
+        if (firstError) {
+          setError(firstError.message);
+          return;
+        }
+        setStats(statsRes.data as Stats);
+        setSailings(sailingsRes.data as PopularSailing[]);
       }
-      setStats(statsRes.data as Stats);
-      setNewUsers(newUsersRes.data as NewUsers);
-      setSailings(sailingsRes.data as PopularSailing[]);
-    });
+    );
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const range = useMemo(() => resolveRange(rangePreset, customStart, customEnd), [rangePreset, customStart, customEnd]);
+  const rangeKey = range ? `${range.start.toISOString()}|${range.end.toISOString()}` : null;
+  const newUsersLoading = rangeKey !== null && newUsersFetchedKey !== rangeKey;
+
+  useEffect(() => {
+    if (!range || !rangeKey) return;
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .rpc("admin_new_users_range", { range_start: range.start.toISOString(), range_end: range.end.toISOString() })
+      .then(({ data, error: rpcError }) => {
+        if (cancelled) return;
+        if (rpcError) {
+          setNewUsersError(rpcError.message);
+          setNewUsersFetchedKey(rangeKey);
+          return;
+        }
+        setNewUsersError("");
+        setNewUsersCount(data as number);
+        setNewUsersFetchedKey(rangeKey);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [range, rangeKey]);
+
   if (error) return <div className="text-sm text-[#d9482e]">{error}</div>;
-  if (!stats || !newUsers || !sailings) return <div className="text-sm text-muted">Loading…</div>;
+  if (!stats || !sailings) return <div className="text-sm text-muted">Loading…</div>;
 
   return (
     <div>
@@ -93,12 +151,51 @@ export default function AdminStatsPanel() {
         ))}
       </div>
 
-      <div className="mt-6 mb-3 font-display text-lg font-bold text-charcoal">New users</div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {NEW_USER_TILES.map((t) => (
-          <StatTile key={t.key} value={newUsers[t.key]} label={t.label} />
-        ))}
+      <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="font-display text-lg font-bold text-charcoal">New users</div>
+        <select
+          value={rangePreset}
+          onChange={(e) => setRangePreset(e.target.value as RangePreset)}
+          className={selectInput + " w-auto"}
+        >
+          {RANGE_PRESETS.map((p) => (
+            <option key={p.key} value={p.key}>
+              {p.label}
+            </option>
+          ))}
+        </select>
       </div>
+      {rangePreset === "custom" ? (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => setCustomStart(e.target.value)}
+            max={customEnd || undefined}
+            className={textInput + " w-auto"}
+          />
+          <span className="text-sm text-muted">to</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => setCustomEnd(e.target.value)}
+            min={customStart || undefined}
+            className={textInput + " w-auto"}
+          />
+        </div>
+      ) : null}
+      {newUsersError ? (
+        <div className="text-sm text-[#d9482e]">{newUsersError}</div>
+      ) : !range ? (
+        <div className="text-sm text-muted">Pick a start and end date.</div>
+      ) : (
+        <div className="max-w-[200px]">
+          <StatTile
+            value={newUsersLoading || newUsersCount === null ? "…" : newUsersCount}
+            label={RANGE_PRESETS.find((p) => p.key === rangePreset)?.label ?? ""}
+          />
+        </div>
+      )}
 
       <div className="mt-6 mb-3 font-display text-lg font-bold text-charcoal">Most popular sailings</div>
       {sailings.length === 0 ? (
