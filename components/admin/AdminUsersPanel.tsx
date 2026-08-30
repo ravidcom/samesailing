@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import Avatar from "@/components/ui/Avatar";
+import { selectInput } from "@/lib/formStyles";
 
 type UserRow = {
   id: string;
@@ -12,15 +13,28 @@ type UserRow = {
   avatarTint: string;
   country: string;
   sailingCount: number;
+  messageCount: number;
+  messageCount7d: number;
   isAdmin: boolean;
   banned: boolean;
 };
+
+type ActivityRow = { user_id: string; message_count: number; message_count_7d: number };
+
+type SortKey = "active7d" | "sailings" | "messages";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "active7d", label: "Most active (7 days)" },
+  { key: "sailings", label: "Most sailings" },
+  { key: "messages", label: "Most messages" },
+];
 
 export default function AdminUsersPanel() {
   const { userId } = useAuth();
   const [users, setUsers] = useState<UserRow[] | null>(null);
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("active7d");
 
   useEffect(() => {
     let cancelled = false;
@@ -29,13 +43,17 @@ export default function AdminUsersPanel() {
       supabase.from("profiles").select("id,name,avatar,avatar_tint,country"),
       supabase.from("joined_sailings").select("user_id"),
       supabase.from("user_moderation").select("user_id,is_admin,banned"),
-    ]).then(([{ data: profiles }, { data: sailings }, { data: moderation }]) => {
+      supabase.rpc("admin_user_activity"),
+    ]).then(([{ data: profiles }, { data: sailings }, { data: moderation }, { data: activity }]) => {
       if (cancelled) return;
       const sailingCounts = new Map<string, number>();
       for (const s of sailings ?? []) {
         sailingCounts.set(s.user_id, (sailingCounts.get(s.user_id) ?? 0) + 1);
       }
       const moderationByUser = new Map((moderation ?? []).map((m) => [m.user_id, m]));
+      const activityByUser = new Map(
+        ((activity ?? []) as ActivityRow[]).map((a) => [a.user_id, { count: a.message_count, count7d: a.message_count_7d }])
+      );
 
       setUsers(
         (profiles ?? []).map((p) => ({
@@ -45,6 +63,8 @@ export default function AdminUsersPanel() {
           avatarTint: p.avatar_tint,
           country: p.country,
           sailingCount: sailingCounts.get(p.id) ?? 0,
+          messageCount: activityByUser.get(p.id)?.count ?? 0,
+          messageCount7d: activityByUser.get(p.id)?.count7d ?? 0,
           isAdmin: moderationByUser.get(p.id)?.is_admin ?? false,
           banned: moderationByUser.get(p.id)?.banned ?? false,
         }))
@@ -65,27 +85,43 @@ export default function AdminUsersPanel() {
     setPending(null);
   }
 
-  const filtered = useMemo(() => {
+  const sorted = useMemo(() => {
     if (!users) return null;
     const q = query.trim().toLowerCase();
-    return q ? users.filter((u) => u.name.toLowerCase().includes(q)) : users;
-  }, [users, query]);
+    const filtered = q ? users.filter((u) => u.name.toLowerCase().includes(q)) : users;
+    const sortValue: Record<SortKey, (u: UserRow) => number> = {
+      active7d: (u) => u.messageCount7d,
+      sailings: (u) => u.sailingCount,
+      messages: (u) => u.messageCount,
+    };
+    const value = sortValue[sortKey];
+    return [...filtered].sort((a, b) => value(b) - value(a));
+  }, [users, query, sortKey]);
 
-  if (!filtered) return <div className="text-sm text-muted">Loading…</div>;
+  if (!sorted) return <div className="text-sm text-muted">Loading…</div>;
 
   return (
     <div>
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by name…"
-        className="mb-3 w-full max-w-[320px] rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-2.5 font-sans text-sm text-charcoal transition-colors focus:border-teal"
-      />
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by name…"
+          className="w-full max-w-[320px] rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-2.5 font-sans text-sm text-charcoal transition-colors focus:border-teal"
+        />
+        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className={selectInput + " w-auto"}>
+          {SORTS.map((s) => (
+            <option key={s.key} value={s.key}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="overflow-hidden rounded-[16px] border border-[#e4f0f1] bg-white">
-        {filtered.map((u, i) => (
+        {sorted.map((u, i) => (
           <div
             key={u.id}
-            className={`flex items-center gap-3 px-4 py-3 ${i < filtered.length - 1 ? "border-b border-border" : ""}`}
+            className={`flex items-center gap-3 px-4 py-3 ${i < sorted.length - 1 ? "border-b border-border" : ""}`}
           >
             <Avatar emoji={u.avatar} tint={u.avatarTint} size={36} />
             <div className="min-w-0 flex-1">
@@ -103,7 +139,8 @@ export default function AdminUsersPanel() {
                 ) : null}
               </div>
               <div className="text-xs text-muted-2">
-                {u.country || "No country set"} · {u.sailingCount} sailing{u.sailingCount === 1 ? "" : "s"}
+                {u.country || "No country set"} · {u.sailingCount} sailing{u.sailingCount === 1 ? "" : "s"} ·{" "}
+                {u.messageCount} message{u.messageCount === 1 ? "" : "s"} · {u.messageCount7d} in last 7d
               </div>
             </div>
             {u.id === userId ? null : (
