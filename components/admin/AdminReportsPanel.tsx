@@ -13,6 +13,7 @@ type ReportRow = {
   reported_user_id: string;
   sailing_id: string | null;
   message_kind: "group_message" | "dm_message" | null;
+  message_id: string | null;
   message_preview: string | null;
   reason: string;
   note: string | null;
@@ -42,6 +43,7 @@ export default function AdminReportsPanel() {
   const [contacts, setContacts] = useState<ContactRow[] | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
+  const [deletedMsgs, setDeletedMsgs] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +81,18 @@ export default function AdminReportsPanel() {
     const supabase = createClient();
     await supabase.from("reports").update({ status }).eq("id", id);
     setReports((prev) => prev?.map((r) => (r.id === id ? { ...r, status } : r)) ?? null);
+    setPending(null);
+  }
+
+  async function deleteMessage(r: ReportRow) {
+    if (!r.message_kind || !r.message_id) return;
+    setPending(r.id);
+    const supabase = createClient();
+    const { error } = await supabase.rpc("admin_delete_message", {
+      message_kind: r.message_kind,
+      message_id: r.message_id,
+    });
+    if (!error) setDeletedMsgs((prev) => ({ ...prev, [r.id]: true }));
     setPending(null);
   }
 
@@ -196,6 +210,22 @@ export default function AdminReportsPanel() {
                     {banned[r.reported_user_id] ? "Unban" : "Ban"} {names[r.reported_user_id] ?? "user"}
                   </button>
                 )}
+                {r.message_kind && r.message_id ? (
+                  deletedMsgs[r.id] ? (
+                    <span className="rounded-[9px] border-[1.5px] border-border px-3 py-1.5 font-sans text-xs font-semibold text-muted-2">
+                      Message deleted
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => deleteMessage(r)}
+                      disabled={pending === r.id}
+                      className="rounded-[9px] border-[1.5px] border-[#ffd0b8] px-3 py-1.5 font-sans text-xs font-semibold text-coral transition-colors hover:bg-[#fff3eb] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Delete message
+                    </button>
+                  )
+                ) : null}
               </div>
             </div>
           ))}
