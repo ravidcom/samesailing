@@ -33,24 +33,33 @@ export default function StepAccount({ data, update, error, onContinue, onSocialA
         <span className="h-px flex-1 bg-border" />
       </div>
 
-      <label className={fieldLabel}>Full name</label>
+      <label htmlFor="onboarding-name" className={fieldLabel}>
+        Full name
+      </label>
       <input
+        id="onboarding-name"
         className={textInput}
         type="text"
         placeholder="Your name"
         value={data.name}
         onChange={(e) => update({ name: e.target.value })}
       />
-      <label className={fieldLabel + " mt-4"}>Email</label>
+      <label htmlFor="onboarding-email" className={fieldLabel + " mt-4"}>
+        Email
+      </label>
       <input
+        id="onboarding-email"
         className={textInput}
         type="email"
         placeholder="you@example.com"
         value={data.email}
         onChange={(e) => update({ email: e.target.value })}
       />
-      <label className={fieldLabel + " mt-4"}>Password</label>
+      <label htmlFor="onboarding-password" className={fieldLabel + " mt-4"}>
+        Password
+      </label>
       <input
+        id="onboarding-password"
         className={textInput}
         type="password"
         placeholder="At least 8 characters"

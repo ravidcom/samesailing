@@ -214,7 +214,7 @@ export default function PassengerBoard({
             <span className="font-sans text-[13px] font-semibold text-muted">
               LGBTQ+ Member <span className="font-medium text-[#9db4b7]">· {lgbtqAboardCount} aboard</span>
             </span>
-            <Toggle on={lgbtqOnly} onChange={() => setLgbtqOnly(!lgbtqOnly)} />
+            <Toggle on={lgbtqOnly} onChange={() => setLgbtqOnly(!lgbtqOnly)} label="Show LGBTQ+ members only" />
           </div>
         </div>
       </div>

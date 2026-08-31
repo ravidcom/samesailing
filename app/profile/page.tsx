@@ -145,14 +145,35 @@ export default function ProfilePage() {
           </button>
         </div>
 
-        <label className={fieldLabel}>First name</label>
-        <input className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"} value={user?.name ?? ""} disabled />
+        <label htmlFor="profile-first-name" className={fieldLabel}>
+          First name
+        </label>
+        <input
+          id="profile-first-name"
+          className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"}
+          value={user?.name ?? ""}
+          disabled
+        />
 
-        <label className={fieldLabel + " mt-3"}>Email</label>
-        <input className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"} value={user?.email ?? ""} disabled />
+        <label htmlFor="profile-email" className={fieldLabel + " mt-3"}>
+          Email
+        </label>
+        <input
+          id="profile-email"
+          className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"}
+          value={user?.email ?? ""}
+          disabled
+        />
 
-        <label className={fieldLabel + " mt-3"}>Country</label>
-        <input className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"} value={country} disabled />
+        <label htmlFor="profile-country" className={fieldLabel + " mt-3"}>
+          Country
+        </label>
+        <input
+          id="profile-country"
+          className={textInput + " cursor-not-allowed bg-[#f2f7f7] text-muted-2"}
+          value={country}
+          disabled
+        />
 
         <label className={fieldLabel + " mt-5"}>How you appear to other passengers</label>
         <p className="mb-2.5 text-[11.5px] leading-relaxed text-muted-2">
@@ -173,9 +194,10 @@ export default function ProfilePage() {
 
         {hasPassword ? (
           <>
-            <label className={fieldLabel + " mt-5"}>Change password</label>
+            <div className={fieldLabel + " mt-5"}>Change password</div>
             <input
               type="password"
+              aria-label="New password"
               className={textInput}
               placeholder="New password (min 8 characters)"
               value={newPassword}
@@ -183,6 +205,7 @@ export default function ProfilePage() {
             />
             <input
               type="password"
+              aria-label="Confirm new password"
               className={textInput + " mt-2"}
               placeholder="Confirm new password"
               value={confirmPassword}

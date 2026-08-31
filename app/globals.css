@@ -8,8 +8,13 @@
   --color-ink: #16323a;
   --color-charcoal: #2a201c;
   --color-muted: #4c6d72;
-  --color-muted-2: #6f9297;
-  --color-teal: #0e8c99;
+  /* Darkened from #6f9297 to clear WCAG AA's 4.5:1 text-contrast minimum
+     against both white and --color-teal-tint backgrounds (was ~3:1). */
+  --color-muted-2: #4f6f73;
+  /* Darkened from #0e8c99 (~4:1 against white) to clear WCAG AA's 4.5:1
+     minimum - used as both text-on-white and white-text-on-this-background,
+     so one contrast fix covers both directions. */
+  --color-teal: #0a7c89;
   --color-teal-dark: #0a6e79;
   --color-teal-tint: #e6f5f7;
   --color-teal-shadow: #7fc9dc;

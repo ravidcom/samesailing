@@ -25,6 +25,7 @@ export default function NotificationSettings() {
           <Toggle
             on={notifications.notifyDigest}
             onChange={() => updateNotificationSettings({ notifyDigest: !notifications.notifyDigest })}
+            label="Group chat activity notifications"
           />
         </div>
         <div className="flex items-center justify-between gap-5 border-b border-border px-5.5 py-4.5">
@@ -40,6 +41,7 @@ export default function NotificationSettings() {
           <Toggle
             on={notifications.notifyDmAlerts}
             onChange={() => updateNotificationSettings({ notifyDmAlerts: !notifications.notifyDmAlerts })}
+            label="Private message alert notifications"
           />
         </div>
         <div className="flex items-center justify-between gap-5 px-5.5 py-4.5">

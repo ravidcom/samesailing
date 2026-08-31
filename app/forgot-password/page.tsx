@@ -53,8 +53,11 @@ export default function ForgotPasswordPage() {
                   Enter the email address you registered with and we&apos;ll send a
                   reset link within a few minutes.
                 </div>
-                <label className={fieldLabel}>Email address</label>
+                <label htmlFor="forgot-password-email" className={fieldLabel}>
+                  Email address
+                </label>
                 <input
+                  id="forgot-password-email"
                   className={textInput}
                   type="email"
                   placeholder="you@example.com"

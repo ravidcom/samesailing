@@ -84,6 +84,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
                 className="flex-1 rounded-lg border-[1.5px] border-border bg-white p-2 font-sans text-xs text-charcoal"
                 value={k.gender}
                 onChange={(e) => updateKid(i, { gender: e.target.value })}
+                aria-label={`Child ${i + 1} gender`}
               >
                 {KID_GENDERS.map((g) => (
                   <option key={g} value={g}>
@@ -95,6 +96,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
                 className="max-w-[72px] flex-1 rounded-lg border-[1.5px] border-border bg-white p-2 font-sans text-xs text-charcoal"
                 value={k.age}
                 onChange={(e) => updateKid(i, { age: e.target.value })}
+                aria-label={`Child ${i + 1} age`}
               >
                 <option value="">Age</option>
                 {Array.from({ length: 17 }, (_, a) => String(a + 1)).map((a) => (
@@ -179,8 +181,11 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
 
       {data.partyType === "friends" ? (
         <div className="mt-4">
-          <label className={fieldLabel}>Group size</label>
+          <label htmlFor="onboarding-group-size" className={fieldLabel}>
+            Group size
+          </label>
           <select
+            id="onboarding-group-size"
             className="w-full rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-sm text-charcoal"
             value={data.groupSize}
             onChange={(e) => update({ groupSize: e.target.value })}
@@ -196,7 +201,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
 
       {data.partyType ? (
         <div className="mt-4">
-          <label className={fieldLabel}>
+          <label htmlFor="onboarding-bio" className={fieldLabel}>
             Tell others about yourself{" "}
             <span className="text-[11px] font-normal tracking-normal text-muted-2 normal-case">
               (optional)
@@ -204,6 +209,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
           </label>
           <div className="relative">
             <textarea
+              id="onboarding-bio"
               maxLength={80}
               rows={2}
               placeholder="e.g. Foodies exploring local flavours, first Caribbean cruise..."
