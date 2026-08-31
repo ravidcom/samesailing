@@ -11,12 +11,14 @@ import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
 import { GROUP_SEED_MESSAGES, formatTimeLabel, chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
 import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
-import { badgeForRank, type Badge } from "@/lib/pioneer";
+import { badgeForRank } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
 import InstallAppButton from "@/components/ui/InstallAppButton";
 import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
 import Avatar from "@/components/ui/Avatar";
+import PrideStripe from "@/components/ui/PrideStripe";
 import { sanitizeAvatar, DEFAULT_AVATAR_EMOJI, DEFAULT_AVATAR_TINT } from "@/lib/avatars";
+import { registerChatThreadCloser } from "@/lib/chatThreadBridge";
 
 type GroupMessageRow = {
   id: string;
@@ -56,6 +58,68 @@ type DmThreadSummary = {
    * new", reactively against readMap (no refetch needed when it changes). */
   otherMessageTimestamps: number[];
 };
+
+type MemberInfo = {
+  joinRank: number | null;
+  avatarEmoji: string;
+  avatarTint: string;
+  lgbtq: boolean;
+};
+
+/** A run of consecutive messages from one sender: avatar and name print
+ * once at the top, timestamp once at the bottom. Breaks on a sender
+ * change or a 5+ minute gap - never merges across a day divider, since a
+ * new day always means a large gap in practice anyway. */
+const RUN_GAP_MS = 5 * 60 * 1000;
+type MessageRun = {
+  key: string;
+  mine: boolean;
+  senderId: string | null;
+  senderName: string;
+  day?: string;
+  items: ChatMessage[];
+};
+function buildMessageRuns(messages: ChatMessage[]): MessageRun[] {
+  const runs: MessageRun[] = [];
+  let lastSenderKey: string | null = null;
+  let lastAtMs: number | null = null;
+  for (const m of messages) {
+    const senderKey = m.mine ? "__mine__" : (m.userId ?? m.sender);
+    const gapTooLarge = lastAtMs == null || m.atMs == null || m.atMs - lastAtMs >= RUN_GAP_MS;
+    const sameSender = !m.day && lastSenderKey === senderKey && !gapTooLarge;
+    const current = runs[runs.length - 1];
+    if (sameSender && current) {
+      current.items.push(m);
+    } else {
+      runs.push({ key: m.id, mine: m.mine, senderId: m.userId ?? null, senderName: m.sender, day: m.day, items: [m] });
+    }
+    lastSenderKey = senderKey;
+    lastAtMs = m.atMs ?? null;
+  }
+  return runs;
+}
+
+/** The group card's second line, checked in order - each state is true of
+ * a different sailing on the same day, and one sailing walks down the
+ * ladder over its life. State 4 is the launch default, not an edge case:
+ * most sailings are months out with nobody messaging yet. */
+function groupStatusLine(
+  unreadCount: number,
+  lastMessage: { senderName: string; atMs: number } | null,
+  joinsThisWeek: number
+): string {
+  if (unreadCount > 0) return `${unreadCount} new since you last looked`;
+  if (lastMessage) return `${lastMessage.senderName} wrote ${relativeTimeLabel(lastMessage.atMs)}`;
+  if (joinsThisWeek > 0) return `${joinsThisWeek} traveler${joinsThisWeek === 1 ? "" : "s"} joined this week`;
+  return "Be the first to say hello";
+}
+function relativeTimeLabel(atMs: number): string {
+  const diff = Date.now() - atMs;
+  if (diff < 3600000) return "just now";
+  if (diff < 86400000) return `${Math.max(1, Math.round(diff / 3600000))}h ago`;
+  const days = Math.round(diff / 86400000);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}
 
 function rowToGroupMessage(row: GroupMessageRow, myUserId: string | null): ChatMessage {
   return {
@@ -233,90 +297,211 @@ function saveDmDraft(userId: string, threadId: string, text: string) {
   else localStorage.removeItem(dmDraftKey(userId, threadId));
 }
 
-function MessageBubble({
+/** First/only bubble in a run keeps today's existing single-message corner
+ * (the common case, unchanged); a run of 2+ gets a small tail only on the
+ * first and last bubble, uniform corners in between. */
+function bubbleRadiusClass(mine: boolean, position: "only" | "first" | "middle" | "last"): string {
+  if (position === "middle") return "rounded-2xl";
+  if (position === "last") return mine ? "rounded-2xl rounded-tr-[4px]" : "rounded-2xl rounded-tl-[4px]";
+  return mine ? "rounded-2xl rounded-br-[4px]" : "rounded-2xl rounded-bl-[4px]";
+}
+
+function MessageActionsMenu({
   msg,
   deletable,
-  onDelete,
   isAdmin,
-  badge,
-  onMessageSender,
+  onDelete,
   onReport,
 }: {
   msg: ChatMessage;
+  /** False for seed/demo content that isn't a real DB row - never offer to delete it. */
   deletable?: boolean;
-  onDelete?: (id: string, mine: boolean) => void;
-  /** Lets an admin delete anyone's message, not just their own. */
   isAdmin?: boolean;
-  badge?: Badge | null;
-  /** Only meaningful for group messages - DM bubbles already know who they're with. */
-  onMessageSender?: (senderId: string) => void;
+  onDelete?: (id: string, mine: boolean) => void;
   onReport?: (msg: ChatMessage) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const canDelete = deletable && (msg.mine || isAdmin) && onDelete;
+  const canReport = !msg.mine && msg.userId && onReport;
+  if (!canDelete && !canReport) return null;
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Message options"
+        className="flex h-6 w-6 items-center justify-center rounded-full text-[15px] leading-none text-[#9fb9bc] transition-colors hover:bg-[#e9f6f7] hover:text-teal"
+      >
+        ⋯
+      </button>
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div
+            className={`absolute z-20 mt-1 min-w-[150px] rounded-xl border border-[#e4f0f1] bg-white p-1.5 shadow-[0_12px_32px_rgba(42,32,28,.16)] ${
+              msg.mine ? "right-0" : "left-0"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(msg.body).catch(() => {});
+                setOpen(false);
+              }}
+              className="block w-full rounded-lg px-3 py-2 text-left font-sans text-[13px] text-charcoal hover:bg-input"
+            >
+              Copy text
+            </button>
+            {canReport ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onReport(msg);
+                  setOpen(false);
+                }}
+                className="block w-full rounded-lg px-3 py-2 text-left font-sans text-[13px] text-coral hover:bg-[#fff3eb]"
+              >
+                Report message
+              </button>
+            ) : null}
+            {canDelete ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onDelete(msg.id, msg.mine);
+                  setOpen(false);
+                }}
+                className="block w-full rounded-lg px-3 py-2 text-left font-sans text-[13px] text-coral hover:bg-[#fff3eb]"
+              >
+                Delete
+              </button>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function MessageRunBubble({
+  msg,
+  position,
+  deletable,
+  isAdmin,
+  onDelete,
+  onReport,
+}: {
+  msg: ChatMessage;
+  position: "only" | "first" | "middle" | "last";
+  deletable?: boolean;
+  isAdmin?: boolean;
+  onDelete?: (id: string, mine: boolean) => void;
+  onReport?: (msg: ChatMessage) => void;
+}) {
+  const showTs = position === "only" || position === "last";
   if (msg.deleted) {
     return (
-      <div className={`max-w-[74%] ${msg.mine ? "self-end" : "self-start"}`}>
-        <div
-          className={`mb-1 text-[11px] font-semibold ${msg.mine ? "text-right text-muted-2" : "pl-0.5 text-teal"}`}
-        >
-          {msg.sender}
-        </div>
+      <div className="mb-0.5">
         <div className="rounded-lg border border-dashed border-border px-3 py-2 text-xs italic text-muted-2">
           Message removed
         </div>
-        <div className={`mt-1 text-[10px] text-muted-2 ${msg.mine ? "text-right" : "pl-0.5"}`}>{msg.ts}</div>
+        {showTs ? <div className={`mt-1 text-[10px] text-muted-2 ${msg.mine ? "text-right" : "pl-0.5"}`}>{msg.ts}</div> : null}
       </div>
     );
   }
+  return (
+    <div className="mb-0.5">
+      <div className={`flex items-center gap-1.5 ${msg.mine ? "flex-row-reverse" : ""}`}>
+        <div
+          className={
+            msg.mine
+              ? `${bubbleRadiusClass(true, position)} bg-teal px-3.5 py-2.5 text-[13px] leading-relaxed text-white`
+              : `${bubbleRadiusClass(false, position)} border border-border bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-charcoal`
+          }
+        >
+          {msg.body}
+        </div>
+        <MessageActionsMenu msg={msg} deletable={deletable} isAdmin={isAdmin} onDelete={onDelete} onReport={onReport} />
+      </div>
+      {showTs ? <div className={`mt-1 text-[10px] text-muted-2 ${msg.mine ? "text-right" : "pl-0.5"}`}>{msg.ts}</div> : null}
+    </div>
+  );
+}
+
+/** A run of consecutive same-sender messages: avatar + name print once,
+ * per §3.1-3.3 - the avatar is also a tap target (§3.2), and the sender
+ * line carries at most one badge (founding crew, else a pride bar), never
+ * both (§3.3). */
+function MessageRunView({
+  run,
+  memberInfo,
+  isDeletable,
+  isAdmin,
+  onDelete,
+  onReport,
+  onMessageSender,
+}: {
+  run: MessageRun;
+  memberInfo: Record<string, MemberInfo>;
+  isDeletable: (msg: ChatMessage) => boolean;
+  isAdmin?: boolean;
+  onDelete?: (id: string, mine: boolean) => void;
+  onReport?: (msg: ChatMessage) => void;
+  onMessageSender?: (senderId: string) => void;
+}) {
+  const info = run.senderId ? memberInfo[run.senderId] : undefined;
+  const badge = run.senderId ? badgeForRank(info?.joinRank) : null;
+  const showPride = !run.mine && !badge && info?.lgbtq;
+  const canOpenSender = !run.mine && !!run.senderId && !!onMessageSender;
 
   return (
-    <div className={`max-w-[74%] ${msg.mine ? "self-end" : "self-start"}`}>
-      <div
-        className={`mb-1 flex items-center gap-2 text-[11px] font-semibold ${msg.mine ? "justify-end pr-0.5 text-muted-2" : "pl-0.5 text-teal"}`}
-      >
-        {(msg.mine || isAdmin) && deletable && onDelete ? (
+    <div className={`flex max-w-[74%] items-end gap-2 ${run.mine ? "flex-row-reverse self-end" : "self-start"}`}>
+      {!run.mine ? (
+        canOpenSender ? (
           <button
             type="button"
-            onClick={() => onDelete(msg.id, msg.mine)}
-            className="text-[10px] font-normal text-muted-2 underline decoration-dotted hover:text-coral"
+            onClick={() => onMessageSender!(run.senderId!)}
+            aria-label={`Message ${run.senderName}`}
+            className="mb-[3px] shrink-0"
           >
-            Delete
+            <Avatar emoji={info?.avatarEmoji} tint={info?.avatarTint} size={32} />
           </button>
+        ) : (
+          <div className="mb-[3px] shrink-0">
+            <Avatar emoji={info?.avatarEmoji} tint={info?.avatarTint} size={32} />
+          </div>
+        )
+      ) : null}
+      <div className="flex min-w-0 flex-col">
+        {!run.mine ? (
+          <div className="mb-1 flex items-center gap-1.5 pl-0.5">
+            {canOpenSender ? (
+              <button
+                type="button"
+                onClick={() => onMessageSender!(run.senderId!)}
+                className="text-[11px] font-semibold text-teal hover:underline"
+              >
+                {run.senderName}
+              </button>
+            ) : (
+              <span className="text-[11px] font-semibold text-teal">{run.senderName}</span>
+            )}
+            {badge ? <CompactBadge badge={badge} /> : null}
+            {showPride ? <PrideStripe className="h-[11px] w-[17px]" outlined /> : null}
+          </div>
         ) : null}
-        {!msg.mine && msg.userId && onReport ? (
-          <button
-            type="button"
-            onClick={() => onReport(msg)}
-            className="text-[10px] font-normal text-muted-2 underline decoration-dotted hover:text-coral"
-          >
-            Report
-          </button>
-        ) : null}
-        {msg.sender}
-        {badge ? <CompactBadge badge={badge} /> : null}
-        {!msg.mine && msg.userId && onMessageSender ? (
-          <button
-            type="button"
-            onClick={() => onMessageSender(msg.userId!)}
-            title={`Message ${msg.sender}`}
-            aria-label={`Send a private message to ${msg.sender}`}
-            className="opacity-60 transition-opacity hover:opacity-100"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M4 6.5h16v11H8.5L4 20.5z" />
-            </svg>
-          </button>
-        ) : null}
+        {run.items.map((m, i) => (
+          <MessageRunBubble
+            key={m.id}
+            msg={m}
+            position={run.items.length === 1 ? "only" : i === 0 ? "first" : i === run.items.length - 1 ? "last" : "middle"}
+            deletable={isDeletable(m)}
+            isAdmin={isAdmin}
+            onDelete={onDelete}
+            onReport={onReport}
+          />
+        ))}
       </div>
-      <div
-        className={
-          msg.mine
-            ? "rounded-2xl rounded-br-[4px] bg-teal px-3.5 py-2.5 text-[13px] leading-relaxed text-white"
-            : "rounded-2xl rounded-bl-[4px] border border-border bg-white px-3.5 py-2.5 text-[13px] leading-relaxed text-charcoal"
-        }
-      >
-        {msg.body}
-      </div>
-      <div className={`mt-1 text-[10px] text-muted-2 ${msg.mine ? "text-right" : "pl-0.5"}`}>{msg.ts}</div>
     </div>
   );
 }
@@ -477,9 +662,13 @@ function ChatAppInner() {
 
   const [realGroupMsgs, setRealGroupMsgs] = useState<ChatMessage[]>([]);
   const [groupDraft, setGroupDraft] = useState("");
-  // Pioneer badge rank per member of the active sailing, for the compact
-  // ribbon next to a group-chat sender's name.
-  const [memberJoinRanks, setMemberJoinRanks] = useState<Record<string, number | null>>({});
+  // Pioneer badge rank, avatar, and LGBTQ+ status per member of the active
+  // sailing, for the group thread's sender line (§3.3: one badge slot -
+  // founding crew, else a pride bar, never both) and gutter avatar (§3.2).
+  const [memberInfo, setMemberInfo] = useState<Record<string, MemberInfo>>({});
+  // For the group card's second-line ladder's state 3 (§8d) - travelers
+  // who joined this sailing in the last 7 days.
+  const [joinsThisWeek, setJoinsThisWeek] = useState(0);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
@@ -500,6 +689,8 @@ function ChatAppInner() {
     [realGroupMsgs]
   );
   const realIds = useMemo(() => new Set(realGroupMsgs.map((m) => m.id)), [realGroupMsgs]);
+  const groupRuns = useMemo(() => buildMessageRuns(groupMessages), [groupMessages]);
+  const dmRuns = useMemo(() => buildMessageRuns(dmMessages), [dmMessages]);
   const activeDmThreadId = pane.type === "dm" ? pane.id : null;
   const activeThread = dmThreads.find((t) => t.id === activeDmThreadId) ?? null;
   const travelerCount = useTravelerCount(activeSailing?.id ?? null);
@@ -528,6 +719,8 @@ function ChatAppInner() {
   const groupReadAt = activeSailing ? (readMap[`group:${activeSailing.id}`] ?? 0) : 0;
   const groupUnreadCount = realGroupMsgs.filter((m) => !m.mine && m.atMs && m.atMs > groupReadAt).length;
   const lastRealGroupMsg = realGroupMsgs.length > 0 ? realGroupMsgs[realGroupMsgs.length - 1] : null;
+  // Travelers not already visible via the avatar stack (up to 3) or a DM row.
+  const moreTravelersCount = Math.max(travelerCount - 3 - dmThreads.length, 0);
 
   function markRead(key: string) {
     if (!userId) return;
@@ -701,20 +894,43 @@ function ChatAppInner() {
     };
   }, [activeSailing, supabase, userId]);
 
-  // Pioneer badge lookup for the active sailing's members, so group-chat
-  // sender lines can show a compact ribbon. Join order doesn't change once
-  // assigned, so a plain fetch on sailing switch is enough - no realtime
-  // subscription needed.
+  // Member lookup for the active sailing: join rank (Pioneer badge),
+  // avatar, and LGBTQ+ status, so group-chat sender lines can show a
+  // gutter avatar and the one-badge-slot rule (§3.2-3.3). Also counts
+  // this-week joins for the group card's status ladder (§8d, state 3).
+  // Join rank/LGBTQ+ status don't change once set, and avatar changes are
+  // rare enough that a plain fetch on sailing switch is enough - no
+  // realtime subscription needed.
   useEffect(() => {
     if (!activeSailing) return;
     let cancelled = false;
     supabase
       .from("joined_sailings")
-      .select("user_id,join_rank")
+      .select("user_id,join_rank,profile,created_at")
       .eq("sailing_id", activeSailing.id)
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (cancelled || !data) return;
-        setMemberJoinRanks(Object.fromEntries(data.map((r) => [r.user_id, r.join_rank])));
+        const userIds = data.map((r) => r.user_id);
+        const { data: profileRows } = await supabase.from("profiles").select("id,avatar,avatar_tint").in("id", userIds);
+        if (cancelled) return;
+        const avatarById = new Map(
+          (profileRows ?? []).map((p) => [p.id, sanitizeAvatar(p.avatar, p.avatar_tint)])
+        );
+        const info: Record<string, MemberInfo> = {};
+        const weekAgo = Date.now() - 7 * 86400000;
+        let recentJoins = 0;
+        for (const r of data) {
+          const av = avatarById.get(r.user_id) ?? { emoji: DEFAULT_AVATAR_EMOJI, tint: DEFAULT_AVATAR_TINT };
+          info[r.user_id] = {
+            joinRank: r.join_rank,
+            avatarEmoji: av.emoji,
+            avatarTint: av.tint,
+            lgbtq: (r.profile as OnboardingProfile | null)?.lgbtq ?? false,
+          };
+          if (new Date(r.created_at).getTime() > weekAgo) recentJoins += 1;
+        }
+        setMemberInfo(info);
+        setJoinsThisWeek(recentJoins);
       });
     return () => {
       cancelled = true;
@@ -802,9 +1018,11 @@ function ChatAppInner() {
       const list = await fetchDmThreads(supabase, sailingParam, userId);
       setDmThreads(list);
       setPane({ type: "dm", id: threadId });
+      enterThreadHistory();
       setMobileShowingThread(true);
       router.replace("/chat");
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, userId, activeSailingId, supabase, router, setActiveSailingId]);
 
   // Deep link from the admin dashboard: /chat?sailing=<sailingId> - opens
@@ -821,9 +1039,11 @@ function ChatAppInner() {
     (async () => {
       setActiveSailingId(sailingParam);
       setPane({ type: "group" });
+      enterThreadHistory();
       setMobileShowingThread(true);
       router.replace("/chat");
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, userId, mySailings, router, setActiveSailingId]);
 
   // Active DM thread: load history + subscribe to realtime inserts/updates.
@@ -892,19 +1112,53 @@ function ChatAppInner() {
     setPane({ type: "group" });
   }
 
+  /** Pushes exactly one history entry per list→thread transition on
+   * mobile, so Android back / iOS swipe-back close the thread instead of
+   * exiting the app. Guarded on "already showing" so re-opening (e.g.
+   * switching which DM is open) never pushes a second entry. */
+  function enterThreadHistory() {
+    if (typeof window === "undefined" || window.innerWidth >= 768 || mobileShowingThread) return;
+    window.history.pushState({ chatThread: true }, "");
+  }
+
   function openGroupPane() {
     setPane({ type: "group" });
+    enterThreadHistory();
     setMobileShowingThread(true);
   }
 
   function openDm(id: string) {
     setPane({ type: "dm", id });
+    enterThreadHistory();
     setMobileShowingThread(true);
   }
 
-  function backToList() {
+  /** pop=false is for the popstate handler itself - it must never call
+   * history.back(), or it would just re-trigger this same listener. */
+  function backToList(pop = true) {
     setMobileShowingThread(false);
+    if (pop && typeof window !== "undefined" && window.history.state?.chatThread) window.history.back();
   }
+
+  useEffect(() => {
+    function onPopState() {
+      setMobileShowingThread((was) => (was ? false : was));
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // Lets the mobile tab bar's Chat tab close an open thread on re-tap
+  // instead of doing nothing (the tab is already lit, so a second tap with
+  // no visible effect otherwise reads as the app being stuck).
+  useEffect(() => {
+    registerChatThreadCloser(() => {
+      if (!mobileShowingThread) return false;
+      backToList();
+      return true;
+    });
+    return () => registerChatThreadCloser(null);
+  }, [mobileShowingThread]);
 
   // Lets someone jump straight from a sender's name in the group chat into a
   // private thread with them, without leaving the page - same
@@ -1086,46 +1340,46 @@ function ChatAppInner() {
 
         <div className="flex-1 overflow-y-auto">
           <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">
-            EVERYONE ON THIS SAILING
+            GROUP CHAT
           </div>
           <button
             type="button"
             onClick={openGroupPane}
-            className={`flex w-full items-center gap-3 px-3.5 pb-3.5 text-left transition-colors hover:bg-input ${
-              pane.type === "group" ? "bg-input" : ""
+            style={{ background: "linear-gradient(135deg,#0E8C99,#0a6f7a)", boxShadow: "0 10px 22px rgba(14,140,153,.30)" }}
+            className={`mx-2 mb-1.5 flex w-[calc(100%-16px)] flex-col gap-2.75 rounded-2xl p-3.5 text-left transition-transform ${
+              pane.type === "group" ? "" : "hover:-translate-y-px"
             }`}
           >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-[#dff1f2] text-[23px]">
-              🚢
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-[15.5px] font-bold leading-[1.25] text-charcoal">
-                {activeSailing.shipName}
-              </div>
-              <div className="mt-px truncate text-[11px] font-semibold text-teal">
-                {activeSailing.date} · from {activeSailing.port}
-              </div>
-              <div className="mt-0.5 truncate text-[12.5px] text-[#6f9297]">
-                {lastRealGroupMsg
-                  ? lastRealGroupMsg.deleted
-                    ? "Message removed"
-                    : `${lastRealGroupMsg.sender}: ${lastRealGroupMsg.body}`
-                  : `Group chat · ${travelerCount} travelers`}
-              </div>
-            </div>
-            <div className="shrink-0 self-start text-right">
-              <div className="text-[11px] text-[#9db4b7]">
-                {lastRealGroupMsg?.atMs ? chatListTimeLabel(lastRealGroupMsg.atMs) : ""}
+            <div className="flex items-center gap-2.5">
+              <span className="shrink-0 text-[22px]">⛴️</span>
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-display text-[15px] font-bold text-white">{activeSailing.shipName}</div>
+                <div className="mt-px truncate text-[11px] font-medium text-white/85">
+                  Group chat · {travelerCount} traveler{travelerCount === 1 ? "" : "s"}
+                </div>
               </div>
               {groupUnreadCount > 0 ? (
-                <div className="mt-1 inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-coral px-[5px] text-[10.5px] font-bold text-white">
+                <span className="flex h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full bg-white px-1.5 text-[12px] font-extrabold text-teal">
                   {groupUnreadCount > 9 ? "9+" : groupUnreadCount}
-                </div>
+                </span>
               ) : null}
             </div>
+            <div className="flex items-center gap-2">
+              <div className="flex shrink-0">
+                {Object.entries(memberInfo)
+                  .filter(([id]) => id !== userId)
+                  .slice(0, 3)
+                  .map(([id, m], i) => (
+                    <span key={id} className={i > 0 ? "-ml-2.5 rounded-full" : "rounded-full"} style={{ boxShadow: "0 0 0 2px #0a6f7a" }}>
+                      <Avatar emoji={m.avatarEmoji} tint={m.avatarTint} size={26} />
+                    </span>
+                  ))}
+              </div>
+              <span className="truncate text-[11px] font-semibold text-white">
+                {groupStatusLine(groupUnreadCount, lastRealGroupMsg?.atMs ? { senderName: lastRealGroupMsg.sender, atMs: lastRealGroupMsg.atMs } : null, joinsThisWeek)}
+              </span>
+            </div>
           </button>
-
-          <div className="mx-3.5 h-px bg-[#eef4f4]" />
 
           {dmThreads.length === 0 ? (
             <div className="px-3.5 py-4 text-center text-xs leading-relaxed text-muted-2">
@@ -1138,51 +1392,81 @@ function ChatAppInner() {
           ) : (
             <>
               <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">
-                PRIVATE · {dmThreads.length}
+                DIRECT MESSAGES
               </div>
-              {dmThreads.map((t) => {
-                const dmReadAt = readMap[`dm:${t.id}`] ?? 0;
-                const unreadCount = t.otherMessageTimestamps.filter((ms) => ms > dmReadAt).length;
-                const draft = userId ? loadDmDraft(userId, t.id) : "";
-                const showDraft = t.lastMessageAtMs === 0 && !!draft;
-                return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => openDm(t.id)}
-                    className={`flex w-full items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-input ${
-                      pane.type === "dm" && pane.id === t.id ? "bg-input" : ""
-                    }`}
-                  >
-                    <Avatar emoji={t.avatarEmoji} tint={t.avatarTint} size={48} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 truncate text-[15.5px] font-bold leading-[1.25] text-charcoal">
-                        <span className="truncate">{t.label}</span>
-                        {t.anon ? (
-                          <span className="shrink-0 rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
-                            Anon
-                          </span>
-                        ) : null}
-                      </div>
-                      <div
-                        className={`mt-0.5 truncate text-[12.5px] ${showDraft ? "italic text-[#9db4b7]" : "text-[#6f9297]"}`}
-                      >
-                        {showDraft ? `Draft · ${draft}` : t.preview}
-                      </div>
-                    </div>
-                    <div className="shrink-0 self-start text-right">
-                      <div className="text-[11px] text-[#9db4b7]">{t.timeLabel}</div>
-                      {unreadCount > 0 ? (
-                        <div className="mt-1 inline-flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-coral px-[5px] text-[10.5px] font-bold text-white">
-                          {unreadCount > 9 ? "9+" : unreadCount}
-                        </div>
+              <div className="mx-3.5 overflow-hidden rounded-2xl border border-[#e7f1f2] bg-white">
+                {dmThreads.map((t, i) => {
+                  const dmReadAt = readMap[`dm:${t.id}`] ?? 0;
+                  const unreadCount = t.otherMessageTimestamps.filter((ms) => ms > dmReadAt).length;
+                  const unread = unreadCount > 0;
+                  const draft = userId ? loadDmDraft(userId, t.id) : "";
+                  const showDraft = t.lastMessageAtMs === 0 && !!draft;
+                  const hasPreview = showDraft || !!t.preview;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => openDm(t.id)}
+                      className={`relative flex w-full items-center gap-2.5 px-3 py-2.75 text-left transition-colors hover:bg-input ${
+                        pane.type === "dm" && pane.id === t.id ? "bg-teal-tint" : unread ? "bg-[#f8fdfd]" : ""
+                      }`}
+                    >
+                      {i < dmThreads.length - 1 ? (
+                        <span className="pointer-events-none absolute inset-x-0 bottom-0 ml-[58px] h-px bg-[#eef6f6]" />
                       ) : null}
-                    </div>
-                  </button>
-                );
-              })}
+                      <Avatar emoji={t.avatarEmoji} tint={t.avatarTint} size={42} />
+                      <div className="min-w-0 flex-1">
+                        <div
+                          className={`flex items-center gap-1.5 truncate text-[13.5px] leading-[1.25] text-charcoal ${unread ? "font-bold" : "font-semibold"}`}
+                        >
+                          <span className="truncate">{t.label}</span>
+                          {t.anon ? (
+                            <span className="shrink-0 rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[9.5px] font-bold tracking-[.05em] text-[#9db4b7] uppercase">
+                              Anon
+                            </span>
+                          ) : null}
+                        </div>
+                        <div
+                          className={`mt-0.5 truncate text-[12px] ${
+                            showDraft ? "italic text-[#9db4b7]" : unread ? "font-semibold text-charcoal" : "text-[#5f8288]"
+                          }`}
+                        >
+                          {showDraft ? `Draft · ${draft}` : hasPreview ? t.preview : "No messages yet"}
+                        </div>
+                      </div>
+                      <div className="shrink-0 self-start text-right">
+                        {unread ? (
+                          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-teal px-1.5 text-[10px] font-bold text-white">
+                            {unreadCount > 9 ? "9+" : unreadCount}
+                          </span>
+                        ) : (
+                          <span className="text-[15px] text-[#9fb9bc]">›</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </>
           )}
+
+          {moreTravelersCount > 0 ? (
+            <Link
+              href={`/sailing/${activeSailing.id}/board`}
+              className="mx-3.5 mt-4 mb-4.5 flex items-center gap-3 rounded-2xl border-[1.5px] border-dashed border-[#cfe6e8] p-3.75 transition-colors hover:border-teal"
+            >
+              <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-teal-tint text-[17px] text-teal">
+                🧑‍🤝‍🧑
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13.5px] font-semibold text-charcoal">
+                  {moreTravelersCount} more traveler{moreTravelersCount === 1 ? "" : "s"} aboard
+                </span>
+                <span className="block text-[11.5px] text-muted-2">Browse the passenger board</span>
+              </span>
+              <span className="shrink-0 text-[16px] text-[#9fb9bc]">›</span>
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -1193,11 +1477,11 @@ function ChatAppInner() {
             <div className="flex items-center gap-1.5 min-w-0">
               <button
                 type="button"
-                onClick={backToList}
-                className="mr-1.5 flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-border text-muted md:hidden"
+                onClick={() => backToList()}
+                className="mr-0.5 flex shrink-0 items-center gap-0.5 rounded-full py-1.5 pr-2.5 pl-1.5 font-sans text-[13px] font-semibold text-teal transition-colors hover:bg-[#f0f9f9] md:hidden"
                 aria-label="Back to all chats"
               >
-                ←
+                ‹ Chats
               </button>
               <div className="min-w-0">
                 <div className="truncate text-[13px] font-bold text-charcoal">
@@ -1226,16 +1510,16 @@ function ChatAppInner() {
           ) : null}
 
           <div className="relative flex-1 overflow-hidden">
-            <div ref={groupContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
-              {groupMessages.map((m) => (
-                <div key={m.id} className="flex flex-col gap-3.5">
-                  {m.day ? <DayDivider label={m.day} /> : null}
-                  <MessageBubble
-                    msg={m}
-                    deletable={realIds.has(m.id)}
-                    onDelete={deleteGroupMessage}
+            <div ref={groupContainerRef} className="flex h-full flex-col gap-2.5 overflow-y-auto px-4.5 py-3.5">
+              {groupRuns.map((run) => (
+                <div key={run.key} className="flex flex-col gap-2.5">
+                  {run.day ? <DayDivider label={run.day} /> : null}
+                  <MessageRunView
+                    run={run}
+                    memberInfo={memberInfo}
+                    isDeletable={(m) => realIds.has(m.id)}
                     isAdmin={isAdmin}
-                    badge={m.userId ? badgeForRank(memberJoinRanks[m.userId]) : null}
+                    onDelete={deleteGroupMessage}
                     onMessageSender={openDmWithSender}
                     onReport={reportGroupMessage}
                   />
@@ -1290,11 +1574,11 @@ function ChatAppInner() {
             <div className="flex items-center gap-1.5 min-w-0">
               <button
                 type="button"
-                onClick={backToList}
-                className="mr-1.5 flex h-8.5 w-8.5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-border text-muted md:hidden"
+                onClick={() => backToList()}
+                className="mr-0.5 flex shrink-0 items-center gap-0.5 rounded-full py-1.5 pr-2.5 pl-1.5 font-sans text-[13px] font-semibold text-teal transition-colors hover:bg-[#f0f9f9] md:hidden"
                 aria-label="Back to all chats"
               >
-                ←
+                ‹ Chats
               </button>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 truncate text-[13px] font-bold text-charcoal">
@@ -1326,15 +1610,16 @@ function ChatAppInner() {
           ) : null}
 
           <div className="relative flex-1 overflow-hidden">
-            <div ref={dmContainerRef} className="flex h-full flex-col gap-3.5 overflow-y-auto px-4.5 py-3.5">
+            <div ref={dmContainerRef} className="flex h-full flex-col gap-2.5 overflow-y-auto px-4.5 py-3.5">
               <DayDivider label="Conversation history" />
-              {dmMessages.map((m) => (
-                <MessageBubble
-                  key={m.id}
-                  msg={m}
-                  deletable={m.mine || isAdmin}
-                  onDelete={deleteDmMessage}
+              {dmRuns.map((run) => (
+                <MessageRunView
+                  key={run.key}
+                  run={run}
+                  memberInfo={memberInfo}
+                  isDeletable={() => true}
                   isAdmin={isAdmin}
+                  onDelete={deleteDmMessage}
                   onReport={reportDmMessage}
                 />
               ))}

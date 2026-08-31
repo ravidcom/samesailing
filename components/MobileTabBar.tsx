@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import { tryCloseChatThread } from "@/lib/chatThreadBridge";
 
 function ShipIcon({ active }: { active: boolean }) {
   const size = active ? 21 : 23;
@@ -75,6 +76,12 @@ export default function MobileTabBar() {
           <Link
             key={t.key}
             href={t.href}
+            onClick={(e) => {
+              // Re-tapping the already-lit Chat tab closes an open thread
+              // instead of navigating - the tab stays lit either way, so a
+              // second tap with no visible effect otherwise reads as stuck.
+              if (t.key === "chat" && t.active && tryCloseChatThread()) e.preventDefault();
+            }}
             className={`flex flex-1 flex-col items-center justify-center gap-0.5 font-sans text-[10px] font-medium ${
               t.active ? "font-bold text-teal" : "text-[#7a9599]"
             }`}
