@@ -91,8 +91,9 @@ export default function AdminStatsPanel() {
   const [customStart, setCustomStart] = useState("");
   const [customEnd, setCustomEnd] = useState("");
   const [newUsersCount, setNewUsersCount] = useState<number | null>(null);
-  const [newUsersFetchedKey, setNewUsersFetchedKey] = useState<string | null>(null);
-  const [newUsersError, setNewUsersError] = useState("");
+  const [activeUsersCount, setActiveUsersCount] = useState<number | null>(null);
+  const [rangeFetchedKey, setRangeFetchedKey] = useState<string | null>(null);
+  const [rangeError, setRangeError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -116,25 +117,28 @@ export default function AdminStatsPanel() {
 
   const range = useMemo(() => resolveRange(rangePreset, customStart, customEnd), [rangePreset, customStart, customEnd]);
   const rangeKey = range ? `${range.start.toISOString()}|${range.end.toISOString()}` : null;
-  const newUsersLoading = rangeKey !== null && newUsersFetchedKey !== rangeKey;
+  const rangeLoading = rangeKey !== null && rangeFetchedKey !== rangeKey;
 
   useEffect(() => {
     if (!range || !rangeKey) return;
     let cancelled = false;
     const supabase = createClient();
-    supabase
-      .rpc("admin_new_users_range", { range_start: range.start.toISOString(), range_end: range.end.toISOString() })
-      .then(({ data, error: rpcError }) => {
+    const args = { range_start: range.start.toISOString(), range_end: range.end.toISOString() };
+    Promise.all([supabase.rpc("admin_new_users_range", args), supabase.rpc("admin_active_users_range", args)]).then(
+      ([newUsersRes, activeUsersRes]) => {
         if (cancelled) return;
-        if (rpcError) {
-          setNewUsersError(rpcError.message);
-          setNewUsersFetchedKey(rangeKey);
+        const firstError = newUsersRes.error ?? activeUsersRes.error;
+        if (firstError) {
+          setRangeError(firstError.message);
+          setRangeFetchedKey(rangeKey);
           return;
         }
-        setNewUsersError("");
-        setNewUsersCount(data as number);
-        setNewUsersFetchedKey(rangeKey);
-      });
+        setRangeError("");
+        setNewUsersCount(newUsersRes.data as number);
+        setActiveUsersCount(activeUsersRes.data as number);
+        setRangeFetchedKey(rangeKey);
+      }
+    );
     return () => {
       cancelled = true;
     };
@@ -152,7 +156,7 @@ export default function AdminStatsPanel() {
       </div>
 
       <div className="mt-6 mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="font-display text-lg font-bold text-charcoal">New users</div>
+        <div className="font-display text-lg font-bold text-charcoal">Activity</div>
         <select
           value={rangePreset}
           onChange={(e) => setRangePreset(e.target.value as RangePreset)}
@@ -184,15 +188,19 @@ export default function AdminStatsPanel() {
           />
         </div>
       ) : null}
-      {newUsersError ? (
-        <div className="text-sm text-[#d9482e]">{newUsersError}</div>
+      {rangeError ? (
+        <div className="text-sm text-[#d9482e]">{rangeError}</div>
       ) : !range ? (
         <div className="text-sm text-muted">Pick a start and end date.</div>
       ) : (
-        <div className="max-w-[200px]">
+        <div className="grid max-w-[420px] grid-cols-2 gap-3">
           <StatTile
-            value={newUsersLoading || newUsersCount === null ? "…" : newUsersCount}
-            label={RANGE_PRESETS.find((p) => p.key === rangePreset)?.label ?? ""}
+            value={rangeLoading || newUsersCount === null ? "…" : newUsersCount}
+            label={`New users · ${RANGE_PRESETS.find((p) => p.key === rangePreset)?.label ?? ""}`}
+          />
+          <StatTile
+            value={rangeLoading || activeUsersCount === null ? "…" : activeUsersCount}
+            label={`Active users · ${RANGE_PRESETS.find((p) => p.key === rangePreset)?.label ?? ""}`}
           />
         </div>
       )}

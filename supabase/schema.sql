@@ -690,3 +690,43 @@ begin
   end if;
 end;
 $$;
+
+-- Per-user last-seen timestamp, powering the admin dashboard's "Active
+-- users" range stat. Kept in its own table rather than on `profiles` -
+-- that table's "Anyone can view display-name fields" policy is world-
+-- readable, and a user's activity pattern shouldn't be exposed alongside it.
+create table if not exists user_activity (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  last_seen_at timestamptz not null default now()
+);
+
+alter table user_activity enable row level security;
+
+create policy "Users can set their own last-seen timestamp"
+  on user_activity for insert
+  with check (auth.uid() = user_id);
+
+create policy "Users can update their own last-seen timestamp"
+  on user_activity for update
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
+
+create policy "Admins can view all last-seen timestamps"
+  on user_activity for select
+  using (is_admin());
+
+-- Same range-picker pattern as admin_new_users_range(), for a distinct-
+-- users-seen count instead of a signups count.
+create or replace function admin_active_users_range(range_start timestamptz, range_end timestamptz)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return (select count(*) from user_activity where last_seen_at >= range_start and last_seen_at < range_end);
+end;
+$$;

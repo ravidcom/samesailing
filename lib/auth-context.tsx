@@ -173,6 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(profileRow ?? null);
     setMySailings((sailingRows ?? []).map(rowToSailing));
     setIsAdmin(moderationRow?.is_admin ?? false);
+
+    // Fire-and-forget: powers the admin dashboard's "Active users" range
+    // stat. Not worth blocking or erroring the rest of the load over.
+    void supabase.from("user_activity").upsert({ user_id: userId, last_seen_at: new Date().toISOString() });
   }
 
   useEffect(() => {
