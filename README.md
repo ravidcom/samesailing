@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). You'll need a `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for auth and data to work — see `supabase/schema.sql` for the database schema (run manually in the Supabase SQL Editor; there's no migration tooling set up).
+Open [http://localhost:3000](http://localhost:3000). You'll need a `.env.local` with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` for auth and data to work — see `supabase/schema.sql` for the database schema (run manually in the Supabase SQL Editor; there's no migration tooling set up). Local development uses whichever Supabase project those variables point to — typically the staging project, to avoid touching production data.
 
 ## Deployment
 
