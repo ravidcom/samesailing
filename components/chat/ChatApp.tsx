@@ -3,7 +3,9 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth, type OnboardingProfile } from "@/lib/auth-context";
+import { useAuth, type OnboardingProfile, type PartyType } from "@/lib/auth-context";
+import { PARTY_ICON, PARTY_LABELS } from "@/lib/partyLabels";
+import { GOALS } from "@/lib/goals";
 import { createClient } from "@/lib/supabase/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useTravelerCount } from "@/lib/useTravelerCount";
@@ -64,6 +66,10 @@ type MemberInfo = {
   avatarEmoji: string;
   avatarTint: string;
   lgbtq: boolean;
+  partyType: PartyType;
+  ageLabel: string;
+  country?: string;
+  goals: string[];
 };
 
 /** A run of consecutive messages from one sender: avatar and name print
@@ -439,7 +445,7 @@ function MessageRunView({
   isAdmin,
   onDelete,
   onReport,
-  onMessageSender,
+  onSenderClick,
 }: {
   run: MessageRun;
   memberInfo: Record<string, MemberInfo>;
@@ -447,12 +453,14 @@ function MessageRunView({
   isAdmin?: boolean;
   onDelete?: (id: string, mine: boolean) => void;
   onReport?: (msg: ChatMessage) => void;
-  onMessageSender?: (senderId: string) => void;
+  /** Opens the profile peek card (§5) - passed the click event so the card
+   * can position itself near the tap. */
+  onSenderClick?: (senderId: string, senderName: string, event: React.MouseEvent) => void;
 }) {
   const info = run.senderId ? memberInfo[run.senderId] : undefined;
   const badge = run.senderId ? badgeForRank(info?.joinRank) : null;
   const showPride = !run.mine && !badge && info?.lgbtq;
-  const canOpenSender = !run.mine && !!run.senderId && !!onMessageSender;
+  const canOpenSender = !run.mine && !!run.senderId && !!onSenderClick;
 
   return (
     <div className={`flex max-w-[74%] items-end gap-2 ${run.mine ? "flex-row-reverse self-end" : "self-start"}`}>
@@ -460,8 +468,8 @@ function MessageRunView({
         canOpenSender ? (
           <button
             type="button"
-            onClick={() => onMessageSender!(run.senderId!)}
-            aria-label={`Message ${run.senderName}`}
+            onClick={(e) => onSenderClick!(run.senderId!, run.senderName, e)}
+            aria-label={`View ${run.senderName}'s profile`}
             className="mb-[3px] shrink-0"
           >
             <Avatar emoji={info?.avatarEmoji} tint={info?.avatarTint} size={32} />
@@ -478,7 +486,7 @@ function MessageRunView({
             {canOpenSender ? (
               <button
                 type="button"
-                onClick={() => onMessageSender!(run.senderId!)}
+                onClick={(e) => onSenderClick!(run.senderId!, run.senderName, e)}
                 className="text-[11px] font-semibold text-teal hover:underline"
               >
                 {run.senderName}
@@ -503,6 +511,76 @@ function MessageRunView({
         ))}
       </div>
     </div>
+  );
+}
+
+type ProfilePeekState = { senderId: string; senderName: string; x: number; y: number };
+
+/** Tapping a sender's name or avatar opens this instead of jumping straight
+ * into a DM - a quick look at who they are, with sending a private message
+ * as an explicit next step rather than the only outcome of the tap. */
+function ProfilePeekCard({
+  peek,
+  info,
+  onClose,
+  onMessage,
+}: {
+  peek: ProfilePeekState;
+  info: MemberInfo | undefined;
+  onClose: () => void;
+  onMessage: () => void;
+}) {
+  const badge = badgeForRank(info?.joinRank);
+  const showPride = !badge && info?.lgbtq;
+  const bits = [info ? `${PARTY_ICON[info.partyType]} ${PARTY_LABELS[info.partyType]}` : null, info?.ageLabel, info?.country].filter(
+    Boolean
+  );
+  const width = 272;
+  const left = Math.min(Math.max(8, peek.x - width / 2), (typeof window !== "undefined" ? window.innerWidth : width + 16) - width - 8);
+  const top = Math.min(peek.y + 10, (typeof window !== "undefined" ? window.innerHeight : peek.y + 300) - 260);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-[290]" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-label={`${peek.senderName}'s profile`}
+        style={{ left, top: Math.max(8, top), width }}
+        className="fixed z-[300] rounded-2xl border border-border bg-white p-4 shadow-[0_12px_40px_rgba(42,32,28,.18)]"
+      >
+        <div className="flex items-center gap-3">
+          <Avatar emoji={info?.avatarEmoji} tint={info?.avatarTint} size={50} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5">
+              <span className="truncate text-[15px] font-bold text-charcoal">{peek.senderName}</span>
+              {showPride ? <PrideStripe className="h-[11px] w-[17px]" outlined /> : null}
+            </div>
+            <div className="mt-0.5 truncate text-xs text-muted-2">{bits.length ? bits.join(" · ") : "On this sailing"}</div>
+          </div>
+        </div>
+        {badge ? (
+          <div className="mt-2.5">
+            <CompactBadge badge={badge} />
+          </div>
+        ) : null}
+        {info?.goals && info.goals.length > 0 ? (
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {info.goals.slice(0, 3).map((g) => (
+              <span key={g} className="rounded-full bg-teal-tint px-2.5 py-1 text-[11px] font-medium text-teal">
+                {g}
+              </span>
+            ))}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={onMessage}
+          className="mt-3.5 w-full rounded-[10px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+        >
+          ✉ Send private message
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -670,6 +748,7 @@ function ChatAppInner() {
   // who joined this sailing in the last 7 days.
   const [joinsThisWeek, setJoinsThisWeek] = useState(0);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [profilePeek, setProfilePeek] = useState<ProfilePeekState | null>(null);
 
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
@@ -921,11 +1000,16 @@ function ChatAppInner() {
         let recentJoins = 0;
         for (const r of data) {
           const av = avatarById.get(r.user_id) ?? { emoji: DEFAULT_AVATAR_EMOJI, tint: DEFAULT_AVATAR_TINT };
+          const profile = r.profile as OnboardingProfile | null;
           info[r.user_id] = {
             joinRank: r.join_rank,
             avatarEmoji: av.emoji,
             avatarTint: av.tint,
-            lgbtq: (r.profile as OnboardingProfile | null)?.lgbtq ?? false,
+            lgbtq: profile?.lgbtq ?? false,
+            partyType: profile?.partyType ?? "solo",
+            ageLabel: profile?.ageRanges?.map((a) => a.replace("-", "–")).join(", ") ?? "",
+            country: profile?.country || undefined,
+            goals: (profile?.goals ?? []).map((gid) => GOALS.find((g) => g.id === gid)?.label ?? gid),
           };
           if (new Date(r.joined_at).getTime() > weekAgo) recentJoins += 1;
         }
@@ -1170,6 +1254,31 @@ function ChatAppInner() {
     setDmThreads(list);
     openDm(threadId);
   }
+
+  // Profile peek (§5): tapping a sender's name/avatar opens a card instead
+  // of jumping straight into a DM - sending a message is now an explicit
+  // choice inside the card, not the only outcome of the tap.
+  function openProfilePeek(senderId: string, senderName: string, event: React.MouseEvent) {
+    if (!userId || senderId === userId) return;
+    setProfilePeek({ senderId, senderName, x: event.clientX, y: event.clientY });
+  }
+  function closeProfilePeek() {
+    setProfilePeek(null);
+  }
+  function messageFromPeek() {
+    if (!profilePeek) return;
+    const senderId = profilePeek.senderId;
+    closeProfilePeek();
+    openDmWithSender(senderId);
+  }
+  useEffect(() => {
+    if (!profilePeek) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") closeProfilePeek();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [profilePeek]);
 
   function reportGroupMessage(msg: ChatMessage) {
     if (!msg.userId) return;
@@ -1520,7 +1629,7 @@ function ChatAppInner() {
                     isDeletable={(m) => realIds.has(m.id)}
                     isAdmin={isAdmin}
                     onDelete={deleteGroupMessage}
-                    onMessageSender={openDmWithSender}
+                    onSenderClick={openProfilePeek}
                     onReport={reportGroupMessage}
                   />
                 </div>
@@ -1620,6 +1729,7 @@ function ChatAppInner() {
                   isDeletable={() => true}
                   isAdmin={isAdmin}
                   onDelete={deleteDmMessage}
+                  onSenderClick={openProfilePeek}
                   onReport={reportDmMessage}
                 />
               ))}
@@ -1666,6 +1776,15 @@ function ChatAppInner() {
       ) : null}
 
       <ReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
+
+      {profilePeek ? (
+        <ProfilePeekCard
+          peek={profilePeek}
+          info={memberInfo[profilePeek.senderId]}
+          onClose={closeProfilePeek}
+          onMessage={messageFromPeek}
+        />
+      ) : null}
     </main>
   );
 }
