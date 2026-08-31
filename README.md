@@ -21,4 +21,4 @@ Open [http://localhost:3000](http://localhost:3000). You'll need a `.env.local` 
 
 ## Deployment
 
-Deploys to Vercel automatically via the connected GitHub repository: pushes to a branch get a Preview deployment, pushes to `main` deploy to production.
+Deploys to Vercel automatically via the connected GitHub repository: pushes to a branch get a Preview deployment, pushes to `main` deploy to production. Preview deployments point at a separate staging Supabase project, so testing there never touches production data.
