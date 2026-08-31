@@ -1,7 +1,12 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Hanken_Grotesk } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import "./globals.css";
 import { Providers } from "./providers";
+
+// Only set in Production's Vercel env, so local dev and staging Preview
+// deployments never report traffic into the real analytics property.
+const GA_MEASUREMENT_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 const bricolage = Bricolage_Grotesque({
   variable: "--font-bricolage",
@@ -80,6 +85,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(WEBSITE_JSON_LD) }} />
         <Providers>{children}</Providers>
+        {GA_MEASUREMENT_ID ? <GoogleAnalytics gaId={GA_MEASUREMENT_ID} /> : null}
       </body>
     </html>
   );
