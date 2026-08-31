@@ -906,7 +906,7 @@ function ChatAppInner() {
     let cancelled = false;
     supabase
       .from("joined_sailings")
-      .select("user_id,join_rank,profile,created_at")
+      .select("user_id,join_rank,profile,joined_at")
       .eq("sailing_id", activeSailing.id)
       .then(async ({ data }) => {
         if (cancelled || !data) return;
@@ -927,7 +927,7 @@ function ChatAppInner() {
             avatarTint: av.tint,
             lgbtq: (r.profile as OnboardingProfile | null)?.lgbtq ?? false,
           };
-          if (new Date(r.created_at).getTime() > weekAgo) recentJoins += 1;
+          if (new Date(r.joined_at).getTime() > weekAgo) recentJoins += 1;
         }
         setMemberInfo(info);
         setJoinsThisWeek(recentJoins);
@@ -1292,7 +1292,7 @@ function ChatAppInner() {
   }
 
   return (
-    <main className="mt-[62px] flex h-[calc(100vh-62px-60px)] overflow-hidden md:h-[calc(100vh-62px)]">
+    <main className="flex h-[calc(100vh-60px)] overflow-hidden pt-[62px] md:h-screen">
       {/* SIDEBAR */}
       <div
         className={`w-full shrink-0 flex-col border-r border-border bg-white md:flex md:w-[312px] ${
