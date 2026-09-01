@@ -160,6 +160,7 @@ export default function AdminStatsPanel() {
         <select
           value={rangePreset}
           onChange={(e) => setRangePreset(e.target.value as RangePreset)}
+          aria-label="Date range"
           className={selectInput + " w-auto"}
         >
           {RANGE_PRESETS.map((p) => (
@@ -176,6 +177,7 @@ export default function AdminStatsPanel() {
             value={customStart}
             onChange={(e) => setCustomStart(e.target.value)}
             max={customEnd || undefined}
+            aria-label="Range start date"
             className={textInput + " w-auto"}
           />
           <span className="text-sm text-muted">to</span>
@@ -183,6 +185,7 @@ export default function AdminStatsPanel() {
             type="date"
             value={customEnd}
             onChange={(e) => setCustomEnd(e.target.value)}
+            aria-label="Range end date"
             min={customStart || undefined}
             className={textInput + " w-auto"}
           />

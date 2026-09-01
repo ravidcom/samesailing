@@ -40,11 +40,13 @@ export default function CountrySelect({
       <input
         className={textInput + " mb-1.5"}
         placeholder="🌍 Search country..."
+        aria-label="Search country"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
       />
       <select
         size={listSize}
+        aria-label="Country"
         className="w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input p-1.5 font-sans text-sm text-charcoal"
         onChange={(e) => onChange(e.target.value)}
         value=""

@@ -106,10 +106,16 @@ export default function AdminUsersPanel() {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          aria-label="Search users by name"
           placeholder="Search by name…"
           className="w-full max-w-[320px] rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-2.5 font-sans text-sm text-charcoal transition-colors focus:border-teal"
         />
-        <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className={selectInput + " w-auto"}>
+        <select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          aria-label="Sort users by"
+          className={selectInput + " w-auto"}
+        >
           {SORTS.map((s) => (
             <option key={s.key} value={s.key}>
               {s.label}

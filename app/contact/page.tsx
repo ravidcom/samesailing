@@ -76,11 +76,16 @@ export default function ContactPage() {
           </div>
         ) : (
           <div className="rounded-[22px] border-[1.5px] border-border bg-white p-6">
-            <label className={fieldLabel}>Your name</label>
-            <input className={textInput} value={name} onChange={(e) => setName(e.target.value)} />
+            <label htmlFor="contact-name" className={fieldLabel}>
+              Your name
+            </label>
+            <input id="contact-name" className={textInput} value={name} onChange={(e) => setName(e.target.value)} />
 
-            <label className={fieldLabel + " mt-4"}>Email</label>
+            <label htmlFor="contact-email" className={fieldLabel + " mt-4"}>
+              Email
+            </label>
             <input
+              id="contact-email"
               className={textInput}
               type="email"
               placeholder="you@example.com"
@@ -88,8 +93,11 @@ export default function ContactPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
 
-            <label className={fieldLabel + " mt-4"}>Message</label>
+            <label htmlFor="contact-message" className={fieldLabel + " mt-4"}>
+              Message
+            </label>
             <textarea
+              id="contact-message"
               rows={5}
               value={message}
               onChange={(e) => setMessage(e.target.value)}

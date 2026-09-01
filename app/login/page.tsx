@@ -96,16 +96,22 @@ function LoginForm() {
           <span className="h-px flex-1 bg-border" />
         </div>
 
-        <label className={fieldLabel}>Email</label>
+        <label htmlFor="login-email" className={fieldLabel}>
+          Email
+        </label>
         <input
+          id="login-email"
           className={textInput}
           type="email"
           placeholder="you@example.com"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
-        <label className={fieldLabel + " mt-4"}>Password</label>
+        <label htmlFor="login-password" className={fieldLabel + " mt-4"}>
+          Password
+        </label>
         <input
+          id="login-password"
           className={textInput}
           type="password"
           placeholder="Your password"

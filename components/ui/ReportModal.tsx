@@ -83,8 +83,10 @@ export default function ReportModal({ target, onClose }: { target: ReportTarget 
             Sent privately to the SameSailing team - {target?.label} won&apos;t be notified.
           </p>
 
-          <label className={fieldLabel}>Reason</label>
-          <select className={selectInput} value={reason} onChange={(e) => setReason(e.target.value)}>
+          <label htmlFor="report-reason" className={fieldLabel}>
+            Reason
+          </label>
+          <select id="report-reason" className={selectInput} value={reason} onChange={(e) => setReason(e.target.value)}>
             {REASONS.map((r) => (
               <option key={r} value={r}>
                 {r}
@@ -92,8 +94,11 @@ export default function ReportModal({ target, onClose }: { target: ReportTarget 
             ))}
           </select>
 
-          <label className={fieldLabel + " mt-3"}>Details (optional)</label>
+          <label htmlFor="report-details" className={fieldLabel + " mt-3"}>
+            Details (optional)
+          </label>
           <textarea
+            id="report-details"
             rows={3}
             maxLength={NOTE_MAX_LENGTH}
             value={note}

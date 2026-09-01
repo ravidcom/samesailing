@@ -61,7 +61,7 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
             only visible to fellow passengers on this sailing.
           </div>
         </div>
-        <Toggle on={data.lgbtq} onChange={() => update({ lgbtq: !data.lgbtq })} />
+        <Toggle on={data.lgbtq} onChange={() => update({ lgbtq: !data.lgbtq })} label="LGBTQ+ community member" />
       </div>
 
       {error ? <div className={errorText}>{error}</div> : null}

@@ -39,8 +39,11 @@ export default function ResetPasswordPage() {
             <div className="font-display text-[22px] font-bold text-charcoal">Choose a new password</div>
           </div>
           <div className="px-[30px] pb-[30px] pt-[26px]">
-            <label className={fieldLabel}>New password</label>
+            <label htmlFor="reset-password-new" className={fieldLabel}>
+              New password
+            </label>
             <input
+              id="reset-password-new"
               className={textInput}
               type="password"
               placeholder="At least 8 characters"

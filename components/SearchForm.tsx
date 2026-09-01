@@ -115,6 +115,7 @@ export default function SearchForm() {
         <select
           value={line}
           onChange={(e) => handleLineChange(e.target.value)}
+          aria-label="Cruise line"
           className="select-chevron w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input py-3 pr-[34px] pl-[13px] font-sans text-sm text-charcoal"
         >
           <option value="">
@@ -137,6 +138,7 @@ export default function SearchForm() {
             value={ship}
             onChange={(e) => handleShipChange(e.target.value)}
             disabled={!line || shipsLoading}
+            aria-label="Cruise ship"
             className="select-chevron w-full rounded-[11px] border-[1.5px] border-border bg-input py-3 pr-[34px] pl-[13px] font-sans text-sm text-charcoal disabled:cursor-not-allowed disabled:opacity-45"
           >
             <option value="">
@@ -161,6 +163,7 @@ export default function SearchForm() {
               setError("");
             }}
             disabled={dates.length === 0 || datesLoading}
+            aria-label="Departure date"
             className="select-chevron w-full rounded-[11px] border-[1.5px] border-border bg-input py-3 pr-[34px] pl-[13px] font-sans text-sm text-charcoal disabled:cursor-not-allowed disabled:opacity-45"
           >
             <option value="">
