@@ -20,9 +20,17 @@ export default function Modal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-[420px] rounded-[20px] bg-white p-6 shadow-[0_20px_50px_rgba(42,32,28,.2)]"
+        className="relative w-full max-w-[420px] rounded-[20px] bg-white p-6 shadow-[0_20px_50px_rgba(42,32,28,.2)]"
         style={{ animation: "ccPop .2s ease" }}
       >
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-3.5 right-3.5 flex h-8 w-8 items-center justify-center rounded-full text-lg text-muted-2 transition-colors hover:bg-input hover:text-charcoal"
+        >
+          ×
+        </button>
         {children}
       </div>
     </div>
