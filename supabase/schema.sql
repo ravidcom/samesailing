@@ -821,6 +821,119 @@ create policy "Thread participants can send DMs"
     )
   );
 
+-- Security hardening pass -----------------------------------------------
+
+-- `banned` (user_moderation) existed as a column but no policy anywhere
+-- checked it - a banned account's JWT stays valid until it expires, so
+-- without a DB-side check a ban was purely cosmetic against anyone calling
+-- the REST API directly rather than running the app's own JS. Same
+-- security-definer pattern as is_admin(): reads user_moderation from
+-- inside other tables' own policies without recursing.
+create or replace function is_banned()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce((select banned from user_moderation where user_id = auth.uid()), false);
+$$;
+
+drop policy if exists "Users can join a sailing" on joined_sailings;
+create policy "Users can join a sailing"
+  on joined_sailings for insert
+  with check (auth.uid() = user_id and not is_banned());
+
+drop policy if exists "Sailing members can post group messages" on group_messages;
+create policy "Sailing members can post group messages"
+  on group_messages for insert
+  with check (
+    auth.uid() = user_id
+    and not is_banned()
+    and exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = auth.uid()
+        and joined_sailings.sailing_id = group_messages.sailing_id
+    )
+  );
+
+drop policy if exists "Signed-in users can submit a report" on reports;
+create policy "Signed-in users can submit a report"
+  on reports for insert
+  with check (auth.uid() = reporter_id and not is_banned());
+
+drop policy if exists "Users can block someone" on blocked_users;
+create policy "Users can block someone"
+  on blocked_users for insert
+  with check (auth.uid() = blocker_id and not is_banned());
+
+-- is_blocked_pair() moves to a schema PostgREST doesn't expose. Being
+-- `security definer` only ever controlled what the function's BODY could
+-- see (bypassing blocked_users' own restrictive SELECT policy) - it never
+-- restricted who could CALL the function, and Postgres grants EXECUTE on
+-- new functions to PUBLIC by default. That let anyone call
+-- is_blocked_pair(my_id, their_id) directly over PostgREST's RPC endpoint
+-- and learn whether they'd been blocked - exactly what "no policy reveals
+-- who's blocked you" (above) is supposed to prevent. A private schema
+-- keeps it callable from inside these policies (ordinary SQL name
+-- resolution inside the database, unrelated to PostgREST's REST surface)
+-- while making it unreachable by URL - no REVOKE needed, and no risk of
+-- revoking the very privilege these same policies need to run it.
+create schema if not exists private;
+grant usage on schema private to authenticated;
+
+drop function if exists is_blocked_pair(uuid, uuid);
+
+create function private.is_blocked_pair(user_x uuid, user_y uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from blocked_users
+    where (blocker_id = user_x and blocked_id = user_y)
+       or (blocker_id = user_y and blocked_id = user_x)
+  );
+$$;
+
+grant execute on function private.is_blocked_pair(uuid, uuid) to authenticated;
+
+-- Re-created again to add the ban check and switch to private.is_blocked_pair.
+drop policy if exists "Sailing members can start a DM thread" on dm_threads;
+create policy "Sailing members can start a DM thread"
+  on dm_threads for insert
+  with check (
+    (auth.uid() = user_a or auth.uid() = user_b)
+    and not is_banned()
+    and exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = user_a
+        and joined_sailings.sailing_id = dm_threads.sailing_id
+    )
+    and exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = user_b
+        and joined_sailings.sailing_id = dm_threads.sailing_id
+    )
+    and not private.is_blocked_pair(user_a, user_b)
+  );
+
+drop policy if exists "Thread participants can send DMs" on dm_messages;
+create policy "Thread participants can send DMs"
+  on dm_messages for insert
+  with check (
+    auth.uid() = sender_id
+    and not is_banned()
+    and exists (
+      select 1 from dm_threads
+      where dm_threads.id = dm_messages.thread_id
+        and (dm_threads.user_a = auth.uid() or dm_threads.user_b = auth.uid())
+        and not private.is_blocked_pair(dm_threads.user_a, dm_threads.user_b)
+    )
+  );
+
 -- `profiles.name` is the account's real name, and "Anyone can view
 -- display-name fields" above exposes it in full regardless of name_mode -
 -- contradicting this app's own promise that a real name "only appears if
