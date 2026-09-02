@@ -1116,3 +1116,19 @@ drop trigger if exists profiles_protect_created_at on profiles;
 create trigger profiles_protect_created_at
   before update on profiles
   for each row execute function protect_profile_created_at();
+
+-- `user_activity` had insert/update policies but no select policy for the
+-- row's own owner (only "Admins can view all last-seen timestamps") -
+-- confirmed live in production that a real logged-in user's `.upsert()`
+-- 403s. PostgREST's upsert always runs the insert/update as
+-- `... ON CONFLICT ... DO UPDATE ... RETURNING` internally, even when the
+-- client passes `return=minimal` and never asks for the row back, and
+-- Postgres RLS gates that RETURNING projection on the table's SELECT
+-- policy - so without one, the upsert is rejected outright regardless of
+-- whether the insert/update policies themselves would have allowed it.
+-- Likely the real explanation behind this session's "active users only
+-- shows 1" report: whichever account was non-admin at the time would have
+-- had every last-seen touch silently fail.
+create policy "Users can view their own last-seen timestamp"
+  on user_activity for select
+  using (auth.uid() = user_id);
