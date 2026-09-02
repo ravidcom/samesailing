@@ -7,7 +7,7 @@ import { useAuth, type OnboardingProfile, type PartyType } from "@/lib/auth-cont
 import { PARTY_ICON, PARTY_LABELS } from "@/lib/partyLabels";
 import { GOALS } from "@/lib/goals";
 import { createClient } from "@/lib/supabase/client";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useTravelerCount } from "@/lib/useTravelerCount";
 import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
@@ -822,6 +822,15 @@ function ChatAppInner() {
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
   const [dmDraft, setDmDraft] = useState("");
   const [dmSendError, setDmSendError] = useState(false);
+  // "X is typing…" (§ DM presence): ephemeral realtime broadcast, not
+  // persisted anywhere - there's nothing here worth keeping once the
+  // moment passes. dmChannelRef lets updateDmDraft() send on the same
+  // channel the message-history effect subscribes on, without recreating
+  // a connection per keystroke.
+  const dmChannelRef = useRef<RealtimeChannel | null>(null);
+  const lastTypingSentAtRef = useRef(0);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const otherTypingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deepLinkHandled = useRef<string | null>(null);
   const groupDeepLinkHandled = useRef<string | null>(null);
   const [readMap, setReadMap] = useState<Record<string, number>>({});
@@ -985,6 +994,13 @@ function ChatAppInner() {
   function updateDmDraft(text: string) {
     setDmDraft(text);
     if (userId && activeDmThreadId) saveDmDraft(userId, activeDmThreadId, text);
+    // Throttled to at most once every 2s - a "typing" ping doesn't need
+    // per-keystroke precision, and the receiver's own 3s timeout already
+    // covers the gap between pings while someone keeps typing.
+    if (userId && dmChannelRef.current && Date.now() - lastTypingSentAtRef.current > 2000) {
+      lastTypingSentAtRef.current = Date.now();
+      dmChannelRef.current.send({ type: "broadcast", event: "typing", payload: { userId } });
+    }
   }
 
   // Group chat: load history + subscribe to realtime inserts/updates.
@@ -1269,10 +1285,20 @@ function ChatAppInner() {
         },
         (payload) => upsert(payload.new as DmMessageRow)
       )
+      .on("broadcast", { event: "typing" }, ({ payload }) => {
+        if (payload?.userId === userId) return;
+        setOtherTyping(true);
+        if (otherTypingTimeoutRef.current) clearTimeout(otherTypingTimeoutRef.current);
+        otherTypingTimeoutRef.current = setTimeout(() => setOtherTyping(false), 3000);
+      })
       .subscribe();
+    dmChannelRef.current = channel;
 
     return () => {
       cancelled = true;
+      dmChannelRef.current = null;
+      setOtherTyping(false);
+      if (otherTypingTimeoutRef.current) clearTimeout(otherTypingTimeoutRef.current);
       supabase.removeChannel(channel);
     };
   }, [activeDmThreadId, supabase, userId]);
@@ -1922,7 +1948,13 @@ function ChatAppInner() {
                     return badge ? <CompactBadge badge={badge} /> : null;
                   })() : null}
                 </div>
-                <div className="text-xs text-muted-2">{shortLabels.get(activeSailing.id) ?? activeSailing.shipName}</div>
+                <div className="text-xs text-muted-2">
+                  {otherTyping ? (
+                    <span className="font-semibold text-teal">typing…</span>
+                  ) : (
+                    (shortLabels.get(activeSailing.id) ?? activeSailing.shipName)
+                  )}
+                </div>
               </div>
             </div>
             <button
