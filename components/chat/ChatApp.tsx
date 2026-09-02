@@ -794,6 +794,27 @@ function ChatAppInner() {
   const chipRowRef = useRef<HTMLDivElement>(null);
   const activeChipRef = useRef<HTMLButtonElement>(null);
 
+  // Real viewport height, measured in JS - CSS `dvh` alone isn't reliably
+  // kept in sync in some Android standalone-PWA contexts (notably when the
+  // on-screen keyboard opens/closes while composing a message), so this
+  // page's fixed-height layout uses a measured value as the source of
+  // truth instead. visualViewport's resize event fires correctly for
+  // exactly this case across browsers/display-modes, unlike window resize
+  // alone - falls back to it only where visualViewport isn't available.
+  useEffect(() => {
+    function setAppHeight() {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      document.documentElement.style.setProperty("--app-height", `${height}px`);
+    }
+    setAppHeight();
+    window.visualViewport?.addEventListener("resize", setAppHeight);
+    window.addEventListener("resize", setAppHeight);
+    return () => {
+      window.visualViewport?.removeEventListener("resize", setAppHeight);
+      window.removeEventListener("resize", setAppHeight);
+    };
+  }, []);
+
   const setActiveSailingId = useCallback(
     (id: string) => {
       setActiveSailingIdState(id);
@@ -1634,7 +1655,7 @@ function ChatAppInner() {
   }
 
   return (
-    <main className="flex h-[calc(100dvh-60px)] overflow-hidden pt-[62px] md:h-dvh">
+    <main className="flex h-[calc(var(--app-height,100dvh)-60px)] overflow-hidden pt-[62px] md:h-[var(--app-height,100dvh)]">
       {/* SIDEBAR */}
       <div
         className={`w-full shrink-0 flex-col border-r border-border bg-white md:flex md:w-[312px] ${
