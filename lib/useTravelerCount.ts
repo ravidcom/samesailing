@@ -11,13 +11,9 @@ export function useTravelerCount(sailingId: string | null, fallback = 1) {
     if (!sailingId) return;
     let cancelled = false;
     const supabase = createClient();
-    supabase
-      .from("joined_sailings")
-      .select("user_id", { count: "exact", head: true })
-      .eq("sailing_id", sailingId)
-      .then(({ count: n }) => {
-        if (!cancelled) setResult({ id: sailingId, count: n ?? 0 });
-      });
+    supabase.rpc("get_sailing_passengers", { p_sailing_id: sailingId }).then(({ data }) => {
+      if (!cancelled) setResult({ id: sailingId, count: (data as { user_id: string }[] | null)?.length ?? 0 });
+    });
     return () => {
       cancelled = true;
     };
