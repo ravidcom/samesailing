@@ -522,13 +522,17 @@ type ProfilePeekState = { senderId: string; senderName: string; x: number; y: nu
 function ProfilePeekCard({
   peek,
   info,
+  isBlocked,
   onClose,
   onMessage,
+  onToggleBlock,
 }: {
   peek: ProfilePeekState;
   info: MemberInfo | undefined;
+  isBlocked: boolean;
   onClose: () => void;
   onMessage: () => void;
+  onToggleBlock: () => void;
 }) {
   const badge = badgeForRank(info?.joinRank);
   const showPride = !badge && info?.lgbtq;
@@ -548,7 +552,15 @@ function ProfilePeekCard({
         style={{ left, top: Math.max(8, top), width }}
         className="fixed z-[300] rounded-2xl border border-border bg-white p-4 shadow-[0_12px_40px_rgba(42,32,28,.18)]"
       >
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute top-2 right-2 flex h-7 w-7 items-center justify-center rounded-full text-base text-muted-2 transition-colors hover:bg-input hover:text-charcoal"
+        >
+          ×
+        </button>
+        <div className="flex items-center gap-3 pr-6">
           <Avatar emoji={info?.avatarEmoji} tint={info?.avatarTint} size={50} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5">
@@ -572,13 +584,32 @@ function ProfilePeekCard({
             ))}
           </div>
         ) : null}
-        <button
-          type="button"
-          onClick={onMessage}
-          className="mt-3.5 w-full rounded-[10px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
-        >
-          ✉ Send private message
-        </button>
+        {isBlocked ? (
+          <button
+            type="button"
+            onClick={onToggleBlock}
+            className="mt-3.5 w-full rounded-[10px] border-[1.5px] border-border py-2.5 text-center font-sans text-[13px] font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+          >
+            Unblock {peek.senderName}
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onMessage}
+              className="mt-3.5 w-full rounded-[10px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+            >
+              ✉ Send private message
+            </button>
+            <button
+              type="button"
+              onClick={onToggleBlock}
+              className="mt-2 w-full text-center font-sans text-[11.5px] text-muted-2 hover:text-coral"
+            >
+              🚫 Block {peek.senderName}
+            </button>
+          </>
+        )}
       </div>
     </>
   );
@@ -749,6 +780,7 @@ function ChatAppInner() {
   const [joinsThisWeek, setJoinsThisWeek] = useState(0);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [profilePeek, setProfilePeek] = useState<ProfilePeekState | null>(null);
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
 
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
@@ -1021,6 +1053,25 @@ function ChatAppInner() {
     };
   }, [activeSailing, supabase]);
 
+  // Who this user has blocked - gates the DM composer and drives the
+  // Block/Unblock action in the profile peek card. Only ever reads rows
+  // where we're the blocker (RLS), so this never reveals who has blocked us.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    supabase
+      .from("blocked_users")
+      .select("blocked_id")
+      .eq("blocker_id", userId)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setBlockedIds(new Set(data.map((r) => r.blocked_id)));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, supabase]);
+
   // Sidebar DM thread list for the active sailing — refetched on any DM
   // insert/update the user is a participant of (not just the currently-open
   // thread), so a message landing in a thread you're not looking at still
@@ -1098,12 +1149,17 @@ function ChatAppInner() {
 
     (async () => {
       if (sailingParam !== activeSailingId) setActiveSailingId(sailingParam);
-      const threadId = await findOrCreateThread(supabase, sailingParam, userId, withId);
-      const list = await fetchDmThreads(supabase, sailingParam, userId);
-      setDmThreads(list);
-      setPane({ type: "dm", id: threadId });
-      enterThreadHistory();
-      setMobileShowingThread(true);
+      try {
+        const threadId = await findOrCreateThread(supabase, sailingParam, userId, withId);
+        const list = await fetchDmThreads(supabase, sailingParam, userId);
+        setDmThreads(list);
+        setPane({ type: "dm", id: threadId });
+        enterThreadHistory();
+        setMobileShowingThread(true);
+      } catch {
+        // Most likely a block between the two of you - refused at the DB
+        // level. Nothing to open; just clean up the URL below.
+      }
       router.replace("/chat");
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1249,10 +1305,40 @@ function ChatAppInner() {
   // find-or-create-then-open flow as the /chat?with= deep link.
   async function openDmWithSender(senderId: string) {
     if (!userId || !activeSailing || senderId === userId) return;
-    const threadId = await findOrCreateThread(supabase, activeSailing.id, userId, senderId);
+    let threadId: string;
+    try {
+      threadId = await findOrCreateThread(supabase, activeSailing.id, userId, senderId);
+    } catch {
+      // Most likely a block between the two of you - refused at the DB
+      // level, so there's nothing to open.
+      return;
+    }
     const list = await fetchDmThreads(supabase, activeSailing.id, userId);
     setDmThreads(list);
     openDm(threadId);
+  }
+
+  // Block/unblock (§ passenger safety): enforced server-side on both new
+  // threads and new messages, in either direction - this just keeps the
+  // local blockedIds set (and thus the composer/peek-card UI) in sync.
+  async function toggleBlock(targetId: string, targetName: string) {
+    if (!userId) return;
+    const alreadyBlocked = blockedIds.has(targetId);
+    if (!alreadyBlocked) {
+      const confirmed = window.confirm(
+        `Block ${targetName}? They won't be able to message you, and you won't be able to message them. You can unblock them later.`
+      );
+      if (!confirmed) return;
+      await supabase.from("blocked_users").insert({ blocker_id: userId, blocked_id: targetId });
+      setBlockedIds((prev) => new Set(prev).add(targetId));
+    } else {
+      await supabase.from("blocked_users").delete().eq("blocker_id", userId).eq("blocked_id", targetId);
+      setBlockedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(targetId);
+        return next;
+      });
+    }
   }
 
   // Profile peek (§5): tapping a sender's name/avatar opens a card instead
@@ -1329,12 +1415,21 @@ function ChatAppInner() {
     if (!text || !activeDmThreadId || !userId || !activeSailing) return;
     setDmDraft("");
     saveDmDraft(userId, activeDmThreadId, "");
-    await supabase.from("dm_messages").insert({
+    const { error } = await supabase.from("dm_messages").insert({
       thread_id: activeDmThreadId,
       sender_id: userId,
       sender_label: myDisplayName(activeSailing.profile?.partyType ?? null).name,
       body: text,
     });
+    if (error) {
+      // Most likely the other person has blocked us - our own blockedIds
+      // can't detect that (RLS only shows blocks we made), so this is the
+      // only place that surfaces it. Restore the draft rather than
+      // silently losing what they typed.
+      setDmDraft(text);
+      window.alert("Couldn't send that message. This conversation may no longer be available.");
+      return;
+    }
     fetchDmThreads(supabase, activeSailing.id, userId).then(setDmThreads);
   }
 
@@ -1746,31 +1841,46 @@ function ChatAppInner() {
           </div>
 
           <div className="shrink-0 border-t border-border bg-white px-5.5 py-3.5">
-            <div className="flex items-end gap-2.5">
-              <textarea
-                value={dmDraft}
-                onChange={(e) => updateDmDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    sendDm();
-                  }
-                }}
-                placeholder="Send a private message..."
-                rows={1}
-                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
-              />
-              <button
-                type="button"
-                onClick={sendDm}
-                className="shrink-0 rounded-[11px] bg-teal px-4.5 py-2.5 font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
-              >
-                Send
-              </button>
-            </div>
-            <div className="mt-1.5 text-center text-[11px] text-muted-2">
-              Only you and this traveler can see these messages
-            </div>
+            {activeThread && blockedIds.has(activeThread.otherUserId) ? (
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-input px-3.5 py-3">
+                <span className="text-[12.5px] text-muted">You&apos;ve blocked {activeThread.label}.</span>
+                <button
+                  type="button"
+                  onClick={() => toggleBlock(activeThread.otherUserId, activeThread.label)}
+                  className="shrink-0 rounded-[9px] border-[1.5px] border-border px-3 py-1.5 font-sans text-xs font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+                >
+                  Unblock
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-end gap-2.5">
+                  <textarea
+                    value={dmDraft}
+                    onChange={(e) => updateDmDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        sendDm();
+                      }
+                    }}
+                    placeholder="Send a private message..."
+                    rows={1}
+                    className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendDm}
+                    className="shrink-0 rounded-[11px] bg-teal px-4.5 py-2.5 font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                  >
+                    Send
+                  </button>
+                </div>
+                <div className="mt-1.5 text-center text-[11px] text-muted-2">
+                  Only you and this traveler can see these messages
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}
@@ -1781,8 +1891,10 @@ function ChatAppInner() {
         <ProfilePeekCard
           peek={profilePeek}
           info={memberInfo[profilePeek.senderId]}
+          isBlocked={blockedIds.has(profilePeek.senderId)}
           onClose={closeProfilePeek}
           onMessage={messageFromPeek}
+          onToggleBlock={() => toggleBlock(profilePeek.senderId, profilePeek.senderName)}
         />
       ) : null}
     </main>

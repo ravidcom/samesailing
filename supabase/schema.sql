@@ -730,3 +730,74 @@ begin
   return (select count(*) from user_activity where last_seen_at >= range_start and last_seen_at < range_end);
 end;
 $$;
+
+-- Lets a user block another user in DMs. Enforced at the DB level below
+-- (not just hidden client-side) so a blocked pair can neither start a new
+-- thread nor send a new message in either direction, regardless of what
+-- the client does. Existing threads/messages stay visible - blocking only
+-- gates *new* contact, it doesn't erase history.
+create table if not exists blocked_users (
+  blocker_id uuid not null references auth.users (id) on delete cascade,
+  blocked_id uuid not null references auth.users (id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (blocker_id, blocked_id),
+  check (blocker_id <> blocked_id)
+);
+
+alter table blocked_users enable row level security;
+
+-- No policy lets a user see who has blocked *them* - only their own
+-- outgoing blocks. That's intentional: whether you've been blocked is
+-- never revealed directly, only implicitly (their thread goes silent).
+create policy "Users can view who they've blocked"
+  on blocked_users for select
+  using (auth.uid() = blocker_id);
+
+create policy "Users can block someone"
+  on blocked_users for insert
+  with check (auth.uid() = blocker_id);
+
+create policy "Users can unblock someone"
+  on blocked_users for delete
+  using (auth.uid() = blocker_id);
+
+-- Re-created to also refuse a blocked pair, in either direction. `create
+-- or replace` doesn't work for policies - drop first.
+drop policy if exists "Sailing members can start a DM thread" on dm_threads;
+create policy "Sailing members can start a DM thread"
+  on dm_threads for insert
+  with check (
+    (auth.uid() = user_a or auth.uid() = user_b)
+    and exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = user_a
+        and joined_sailings.sailing_id = dm_threads.sailing_id
+    )
+    and exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = user_b
+        and joined_sailings.sailing_id = dm_threads.sailing_id
+    )
+    and not exists (
+      select 1 from blocked_users
+      where (blocker_id = user_a and blocked_id = user_b)
+         or (blocker_id = user_b and blocked_id = user_a)
+    )
+  );
+
+drop policy if exists "Thread participants can send DMs" on dm_messages;
+create policy "Thread participants can send DMs"
+  on dm_messages for insert
+  with check (
+    auth.uid() = sender_id
+    and exists (
+      select 1 from dm_threads
+      where dm_threads.id = dm_messages.thread_id
+        and (dm_threads.user_a = auth.uid() or dm_threads.user_b = auth.uid())
+        and not exists (
+          select 1 from blocked_users
+          where (blocker_id = dm_threads.user_a and blocked_id = dm_threads.user_b)
+             or (blocker_id = dm_threads.user_b and blocked_id = dm_threads.user_a)
+        )
+    )
+  );
