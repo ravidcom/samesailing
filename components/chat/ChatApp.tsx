@@ -1461,12 +1461,33 @@ function ChatAppInner() {
     if (!text || !activeSailing || !userId) return;
     setGroupDraft("");
     const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
-    await supabase.from("group_messages").insert({
+    // Sent messages used to only appear once the realtime INSERT event
+    // round-tripped back (Postgres write + realtime broadcast + WebSocket
+    // push), which reads as a laggy send when you're actively watching the
+    // thread. Generating the id client-side lets the optimistic bubble and
+    // the eventual realtime row share one id, so the existing dedup in the
+    // group_messages subscription's upsert() just reconciles them instead
+    // of appending a duplicate.
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    setRealGroupMsgs((prev) => [
+      ...prev,
+      rowToGroupMessage(
+        { id, sailing_id: activeSailing.id, user_id: userId, sender_label: senderLabel, body: text, deleted: false, created_at: createdAt },
+        userId
+      ),
+    ]);
+    const { error } = await supabase.from("group_messages").insert({
+      id,
       sailing_id: activeSailing.id,
       user_id: userId,
       sender_label: senderLabel,
       body: text,
     });
+    if (error) {
+      setGroupDraft(text);
+      setRealGroupMsgs((prev) => prev.filter((m) => m.id !== id));
+    }
   }
 
   async function deleteGroupMessage(id: string, mine: boolean) {
@@ -1485,10 +1506,25 @@ function ChatAppInner() {
     if (!text || !activeDmThreadId || !userId || !activeSailing) return;
     setDmDraft("");
     saveDmDraft(userId, activeDmThreadId, "");
+    // Same optimistic-id trick as sendGroup() - shows the message
+    // immediately instead of waiting for the realtime round-trip, and gets
+    // reconciled (not duplicated) by the dm_messages subscription's own
+    // upsert-by-id once the real row's INSERT event arrives.
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
+    setDmMessages((prev) => [
+      ...prev,
+      rowToDmMessage(
+        { id, thread_id: activeDmThreadId, sender_id: userId, sender_label: senderLabel, body: text, deleted: false, created_at: createdAt },
+        userId
+      ),
+    ]);
     const { error } = await supabase.from("dm_messages").insert({
+      id,
       thread_id: activeDmThreadId,
       sender_id: userId,
-      sender_label: myDisplayName(activeSailing.profile?.partyType ?? null).name,
+      sender_label: senderLabel,
       body: text,
     });
     if (error) {
@@ -1499,6 +1535,7 @@ function ChatAppInner() {
       // instead of a native alert() - a jarring browser popup reads as an
       // app crash, not an expected outcome. Restore the draft rather than
       // silently losing what they typed.
+      setDmMessages((prev) => prev.filter((m) => m.id !== id));
       setDmDraft(text);
       setDmSendError(true);
       setTimeout(() => setDmSendError(false), 4000);
