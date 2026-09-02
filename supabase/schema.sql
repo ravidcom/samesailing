@@ -30,6 +30,10 @@ create policy "Users can view their own profile"
 -- name (or know to fall back to a generated handle), which lives on this
 -- account-level table rather than the per-sailing profile — same
 -- public-browsable stance as "Anyone can browse sailing passengers" below.
+-- Narrowed later in this file (see "Admins can view all profiles" /
+-- public_profiles) once this was found to expose the real `name` column
+-- regardless of name_mode - kept here, not deleted, matching this file's
+-- own convention of leaving originals in place and appending the fix.
 create policy "Anyone can view display-name fields"
   on profiles for select
   using (true);
@@ -929,3 +933,40 @@ create policy "Thread participants can send DMs"
         and not private.is_blocked_pair(dm_threads.user_a, dm_threads.user_b)
     )
   );
+
+-- `profiles.name` is the account's real name, and "Anyone can view
+-- display-name fields" above exposes it in full regardless of name_mode -
+-- contradicting this app's own promise that a real name "only appears if
+-- you pick real-name mode." resolveDisplayName() (lib/displayName.ts)
+-- already only reads `name` when nameMode === 'real' - the anon handle is
+-- derived purely from (userId, partyType), never from `name` - so masking
+-- it here needs no app-side logic change, only routing other-user lookups
+-- through this view instead of the raw table.
+--
+-- A plain view runs against the underlying table's RLS as its OWNER, not
+-- the querying role (Postgres's long-standing view behavior, independent
+-- of the newer security_invoker option) - so this still sees every row
+-- and can expose the safe projection, even once the raw table's public
+-- policy is narrowed to admins-only below.
+create or replace view public_profiles as
+select
+  id,
+  case when name_mode = 'real' then name else null end as name,
+  name_mode,
+  nickname,
+  avatar,
+  avatar_tint,
+  country
+from profiles;
+
+grant select on public_profiles to authenticated, anon;
+
+-- Narrows "Anyone can view display-name fields" (using (true), full raw
+-- row) down to admins only - other-user lookups now go through
+-- public_profiles above instead. Admins keep raw-row access: the
+-- moderation panels need to see through anonymization by design.
+drop policy if exists "Anyone can view display-name fields" on profiles;
+
+create policy "Admins can view all profiles"
+  on profiles for select
+  using (is_admin());
