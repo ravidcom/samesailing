@@ -55,9 +55,11 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
 
   // Display names and avatars are account-level (lib/displayName.ts,
   // lib/avatars.ts), not stored in the per-sailing profile, so they need a
-  // separate join against `profiles`.
+  // separate join against `profiles` - via the public_profiles view, which
+  // masks `name` down to null unless the account picked real-name mode
+  // (the raw table itself is no longer publicly readable for other users).
   const { data: nameRows } = await supabase
-    .from("profiles")
+    .from("public_profiles")
     .select("id,name,name_mode,nickname,avatar,avatar_tint")
     .in(
       "id",

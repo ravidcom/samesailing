@@ -193,7 +193,7 @@ async function fetchDmThreads(
       .select("user_id,profile,join_rank")
       .eq("sailing_id", sailingId)
       .in("user_id", otherIds),
-    supabase.from("profiles").select("id,name,name_mode,nickname,avatar,avatar_tint").in("id", otherIds),
+    supabase.from("public_profiles").select("id,name,name_mode,nickname,avatar,avatar_tint").in("id", otherIds),
     supabase
       .from("dm_messages")
       .select("thread_id,sender_id,body,deleted,created_at")
@@ -1096,7 +1096,7 @@ function ChatAppInner() {
       .then(async ({ data }) => {
         if (cancelled || !data) return;
         const userIds = data.map((r) => r.user_id);
-        const { data: profileRows } = await supabase.from("profiles").select("id,avatar,avatar_tint").in("id", userIds);
+        const { data: profileRows } = await supabase.from("public_profiles").select("id,avatar,avatar_tint").in("id", userIds);
         if (cancelled) return;
         const avatarById = new Map(
           (profileRows ?? []).map((p) => [p.id, sanitizeAvatar(p.avatar, p.avatar_tint)])
