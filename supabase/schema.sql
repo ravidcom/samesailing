@@ -761,6 +761,29 @@ create policy "Users can unblock someone"
   on blocked_users for delete
   using (auth.uid() = blocker_id);
 
+-- blocked_users' own SELECT policy only lets a user see rows where *they*
+-- are the blocker (by design - you can't see who's blocked you). But that
+-- means a plain `exists (select 1 from blocked_users where ...)` inside
+-- another table's policy is ALSO filtered by that same policy: the person
+-- being blocked can't see the row that blocks them, so the check silently
+-- passes for their direction while correctly failing for the blocker's.
+-- This is the same class of problem is_admin() solves for user_moderation -
+-- security definer bypasses RLS so the check sees the row regardless of
+-- which side of the block is asking.
+create or replace function is_blocked_pair(user_x uuid, user_y uuid)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from blocked_users
+    where (blocker_id = user_x and blocked_id = user_y)
+       or (blocker_id = user_y and blocked_id = user_x)
+  );
+$$;
+
 -- Re-created to also refuse a blocked pair, in either direction. `create
 -- or replace` doesn't work for policies - drop first.
 drop policy if exists "Sailing members can start a DM thread" on dm_threads;
@@ -778,11 +801,7 @@ create policy "Sailing members can start a DM thread"
       where joined_sailings.user_id = user_b
         and joined_sailings.sailing_id = dm_threads.sailing_id
     )
-    and not exists (
-      select 1 from blocked_users
-      where (blocker_id = user_a and blocked_id = user_b)
-         or (blocker_id = user_b and blocked_id = user_a)
-    )
+    and not is_blocked_pair(user_a, user_b)
   );
 
 drop policy if exists "Thread participants can send DMs" on dm_messages;
@@ -794,10 +813,6 @@ create policy "Thread participants can send DMs"
       select 1 from dm_threads
       where dm_threads.id = dm_messages.thread_id
         and (dm_threads.user_a = auth.uid() or dm_threads.user_b = auth.uid())
-        and not exists (
-          select 1 from blocked_users
-          where (blocker_id = dm_threads.user_a and blocked_id = dm_threads.user_b)
-             or (blocker_id = dm_threads.user_b and blocked_id = dm_threads.user_a)
-        )
+        and not is_blocked_pair(dm_threads.user_a, dm_threads.user_b)
     )
   );
