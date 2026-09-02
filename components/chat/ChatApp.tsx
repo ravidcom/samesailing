@@ -1341,6 +1341,26 @@ function ChatAppInner() {
     }
   }
 
+  // Lets someone on a still-empty sailing invite others straight to it,
+  // rather than just to the homepage - same native-share-with-clipboard-
+  // fallback pattern as NavBar's shareSite().
+  const [sailingShared, setSailingShared] = useState(false);
+  async function shareSailing() {
+    if (!activeSailing) return;
+    const url = `https://samesailing.com/sailing/${activeSailing.id}`;
+    if (typeof navigator !== "undefined" && navigator.share) {
+      try {
+        await navigator.share({ title: `${activeSailing.shipName} on SameSailing`, url });
+      } catch {
+        // user dismissed the native share sheet — nothing to do
+      }
+      return;
+    }
+    await navigator.clipboard.writeText(url);
+    setSailingShared(true);
+    setTimeout(() => setSailingShared(false), 2000);
+  }
+
   // Profile peek (§5): tapping a sender's name/avatar opens a card instead
   // of jumping straight into a DM - sending a message is now an explicit
   // choice inside the card, not the only outcome of the tap.
@@ -1715,6 +1735,22 @@ function ChatAppInner() {
 
           <div className="relative flex-1 overflow-hidden">
             <div ref={groupContainerRef} className="flex h-full flex-col gap-2.5 overflow-y-auto px-4.5 py-3.5">
+              {travelerCount <= 1 ? (
+                <div className="rounded-2xl border border-[#b9e5e8] bg-teal-tint px-4 py-3.5">
+                  <div className="text-sm font-bold text-charcoal">🚀 You&apos;re the first one here!</div>
+                  <p className="mt-1 text-[13px] leading-relaxed text-muted">
+                    SameSailing just launched, so this sailing is still filling up. Share it with fellow
+                    passengers so they can find their way here too - new travelers join every day.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={shareSailing}
+                    className="mt-2.5 rounded-[9px] border-[1.5px] border-[#b9e5e8] bg-white px-3.5 py-1.5 font-sans text-xs font-semibold text-teal transition-colors hover:border-teal"
+                  >
+                    {sailingShared ? "Copied!" : "📤 Share this sailing"}
+                  </button>
+                </div>
+              ) : null}
               {groupRuns.map((run) => (
                 <div key={run.key} className="flex flex-col gap-2.5">
                   {run.day ? <DayDivider label={run.day} /> : null}
