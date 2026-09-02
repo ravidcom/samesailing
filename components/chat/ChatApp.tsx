@@ -821,6 +821,7 @@ function ChatAppInner() {
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
   const [dmDraft, setDmDraft] = useState("");
+  const [dmSendError, setDmSendError] = useState(false);
   const deepLinkHandled = useRef<string | null>(null);
   const groupDeepLinkHandled = useRef<string | null>(null);
   const [readMap, setReadMap] = useState<Record<string, number>>({});
@@ -1307,6 +1308,7 @@ function ChatAppInner() {
     setPane({ type: "dm", id });
     enterThreadHistory();
     setMobileShowingThread(true);
+    setDmSendError(false);
   }
 
   /** pop=false is for the popstate handler itself - it must never call
@@ -1492,12 +1494,17 @@ function ChatAppInner() {
     if (error) {
       // Most likely the other person has blocked us - our own blockedIds
       // can't detect that (RLS only shows blocks we made), so this is the
-      // only place that surfaces it. Restore the draft rather than
+      // only place that surfaces it. Phrased as an ordinary delivery
+      // failure rather than anything block-specific, and shown inline
+      // instead of a native alert() - a jarring browser popup reads as an
+      // app crash, not an expected outcome. Restore the draft rather than
       // silently losing what they typed.
       setDmDraft(text);
-      window.alert("Couldn't send that message. This conversation may no longer be available.");
+      setDmSendError(true);
+      setTimeout(() => setDmSendError(false), 4000);
       return;
     }
+    setDmSendError(false);
     fetchDmThreads(supabase, activeSailing.id, userId).then(setDmThreads);
   }
 
@@ -1965,7 +1972,11 @@ function ChatAppInner() {
                   </button>
                 </div>
                 <div className="mt-1.5 text-center text-[11px] text-muted-2">
-                  Only you and this traveler can see these messages
+                  {dmSendError ? (
+                    <span className="text-coral">Message not delivered. Please try again.</span>
+                  ) : (
+                    "Only you and this traveler can see these messages"
+                  )}
                 </div>
               </>
             )}
