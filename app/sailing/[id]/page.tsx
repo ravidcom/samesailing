@@ -48,7 +48,7 @@ export default async function SailingResultPage({
       <NavBar />
       <main className="flex min-h-screen items-start justify-center px-4 pt-[100px] pb-16">
         <div className="w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white shadow-[0_20px_50px_rgba(42,32,28,.08)]">
-          <div className="rounded-t-[22px] bg-linear-to-br from-[#12a0ad] to-[#0a6e79] px-8 py-8 text-white">
+          <div className="rounded-t-[22px] bg-linear-to-br from-[#12a0ad] to-[#0a6e79] px-8 py-6 text-white">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="mb-2 text-[12px] font-bold tracking-[.1em] text-white/90 uppercase">
@@ -69,13 +69,12 @@ export default async function SailingResultPage({
             </div>
           </div>
 
-          <div className="px-8 py-7">
-            {/* Real sentence-form description, not just the facts grid below -
-                gives crawlers and readers a unique summary of this exact
-                sailing, matching the page's own meta description. */}
-            <p className="mb-5 text-sm leading-relaxed text-muted">{describeSailing(sailing)}</p>
+          <div className="px-8 py-6">
+            <p className="mb-4 text-sm leading-relaxed text-muted">
+              Meet fellow travelers on this exact {sailing.shipName} sailing before you set sail.
+            </p>
 
-            <div className="mb-5 flex gap-6 text-sm">
+            <div className="mb-4 flex gap-6 text-sm">
               <div>
                 <div className="mb-1 text-[11px] font-bold tracking-[.08em] text-muted-2 uppercase">
                   Departs
@@ -91,31 +90,28 @@ export default async function SailingResultPage({
             </div>
 
             {!dense ? (
-              <div className="mb-4 inline-block rounded-full border border-[#b9e5e8] bg-teal-tint px-4 py-1.5 text-xs font-semibold text-teal">
+              <div className="mb-3 inline-block rounded-full border border-[#b9e5e8] bg-teal-tint px-4 py-1.5 text-xs font-semibold text-teal">
                 Founding member opportunity
               </div>
             ) : null}
 
-            <p className="mb-6 text-sm leading-relaxed text-muted">
+            <p className="mb-4 text-sm leading-relaxed text-muted">
               {dense
                 ? `Connect with ${n} travelers already on this exact sailing - before you even board. Group chat, private messages, and excursion planning all in one place.`
-                : "Be among the first aboard. The first three travelers to join this sailing earn a medal frame on their passenger card, and the next seven come aboard as Early crew."}
+                : "Be among the first aboard - early joiners earn a badge on their passenger card."}
             </p>
 
             {!dense ? (
               <>
-                <div className="mb-4">
+                <div className="mb-3">
                   <FoundingBadgeTiles />
                 </div>
-                <p className="mb-4 text-[13px] leading-relaxed text-muted-2">
-                  Badged travelers sit at the top of the passenger board, and we email you as each new shipmate joins.
-                </p>
                 {(() => {
                   const scarcity = scarcityState(n);
                   return (
                     <div
                       style={{ background: scarcity.bg, border: `1px solid ${scarcity.border}` }}
-                      className="mb-6 flex items-center gap-2 rounded-xl px-3.5 py-3"
+                      className="mb-5 flex items-center gap-2 rounded-xl px-3.5 py-3"
                     >
                       <span className="shrink-0 text-[15px]">🔥</span>
                       <span style={{ color: scarcity.color }} className="text-[13px] leading-snug font-semibold">
