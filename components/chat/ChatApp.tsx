@@ -821,6 +821,7 @@ function ChatAppInner() {
   const [dmThreads, setDmThreads] = useState<DmThreadSummary[]>([]);
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
   const [dmDraft, setDmDraft] = useState("");
+  const [dmSendError, setDmSendError] = useState(false);
   const deepLinkHandled = useRef<string | null>(null);
   const groupDeepLinkHandled = useRef<string | null>(null);
   const [readMap, setReadMap] = useState<Record<string, number>>({});
@@ -1307,6 +1308,7 @@ function ChatAppInner() {
     setPane({ type: "dm", id });
     enterThreadHistory();
     setMobileShowingThread(true);
+    setDmSendError(false);
   }
 
   /** pop=false is for the popstate handler itself - it must never call
@@ -1459,12 +1461,33 @@ function ChatAppInner() {
     if (!text || !activeSailing || !userId) return;
     setGroupDraft("");
     const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
-    await supabase.from("group_messages").insert({
+    // Sent messages used to only appear once the realtime INSERT event
+    // round-tripped back (Postgres write + realtime broadcast + WebSocket
+    // push), which reads as a laggy send when you're actively watching the
+    // thread. Generating the id client-side lets the optimistic bubble and
+    // the eventual realtime row share one id, so the existing dedup in the
+    // group_messages subscription's upsert() just reconciles them instead
+    // of appending a duplicate.
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    setRealGroupMsgs((prev) => [
+      ...prev,
+      rowToGroupMessage(
+        { id, sailing_id: activeSailing.id, user_id: userId, sender_label: senderLabel, body: text, deleted: false, created_at: createdAt },
+        userId
+      ),
+    ]);
+    const { error } = await supabase.from("group_messages").insert({
+      id,
       sailing_id: activeSailing.id,
       user_id: userId,
       sender_label: senderLabel,
       body: text,
     });
+    if (error) {
+      setGroupDraft(text);
+      setRealGroupMsgs((prev) => prev.filter((m) => m.id !== id));
+    }
   }
 
   async function deleteGroupMessage(id: string, mine: boolean) {
@@ -1483,21 +1506,42 @@ function ChatAppInner() {
     if (!text || !activeDmThreadId || !userId || !activeSailing) return;
     setDmDraft("");
     saveDmDraft(userId, activeDmThreadId, "");
+    // Same optimistic-id trick as sendGroup() - shows the message
+    // immediately instead of waiting for the realtime round-trip, and gets
+    // reconciled (not duplicated) by the dm_messages subscription's own
+    // upsert-by-id once the real row's INSERT event arrives.
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
+    setDmMessages((prev) => [
+      ...prev,
+      rowToDmMessage(
+        { id, thread_id: activeDmThreadId, sender_id: userId, sender_label: senderLabel, body: text, deleted: false, created_at: createdAt },
+        userId
+      ),
+    ]);
     const { error } = await supabase.from("dm_messages").insert({
+      id,
       thread_id: activeDmThreadId,
       sender_id: userId,
-      sender_label: myDisplayName(activeSailing.profile?.partyType ?? null).name,
+      sender_label: senderLabel,
       body: text,
     });
     if (error) {
       // Most likely the other person has blocked us - our own blockedIds
       // can't detect that (RLS only shows blocks we made), so this is the
-      // only place that surfaces it. Restore the draft rather than
+      // only place that surfaces it. Phrased as an ordinary delivery
+      // failure rather than anything block-specific, and shown inline
+      // instead of a native alert() - a jarring browser popup reads as an
+      // app crash, not an expected outcome. Restore the draft rather than
       // silently losing what they typed.
+      setDmMessages((prev) => prev.filter((m) => m.id !== id));
       setDmDraft(text);
-      window.alert("Couldn't send that message. This conversation may no longer be available.");
+      setDmSendError(true);
+      setTimeout(() => setDmSendError(false), 4000);
       return;
     }
+    setDmSendError(false);
     fetchDmThreads(supabase, activeSailing.id, userId).then(setDmThreads);
   }
 
@@ -1965,7 +2009,11 @@ function ChatAppInner() {
                   </button>
                 </div>
                 <div className="mt-1.5 text-center text-[11px] text-muted-2">
-                  Only you and this traveler can see these messages
+                  {dmSendError ? (
+                    <span className="text-coral">Message not delivered. Please try again.</span>
+                  ) : (
+                    "Only you and this traveler can see these messages"
+                  )}
                 </div>
               </>
             )}
