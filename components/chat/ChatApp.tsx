@@ -316,20 +316,25 @@ function MessageActionsMenu({
   msg,
   deletable,
   isAdmin,
+  isBlocked,
   onDelete,
   onReport,
+  onToggleBlock,
 }: {
   msg: ChatMessage;
   /** False for seed/demo content that isn't a real DB row - never offer to delete it. */
   deletable?: boolean;
   isAdmin?: boolean;
+  isBlocked?: boolean;
   onDelete?: (id: string, mine: boolean) => void;
   onReport?: (msg: ChatMessage) => void;
+  onToggleBlock?: (userId: string, name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const canDelete = deletable && (msg.mine || isAdmin) && onDelete;
   const canReport = !msg.mine && msg.userId && onReport;
-  if (!canDelete && !canReport) return null;
+  const canBlock = !msg.mine && msg.userId && onToggleBlock;
+  if (!canDelete && !canReport && !canBlock) return null;
   return (
     <div className="relative shrink-0">
       <button
@@ -370,6 +375,18 @@ function MessageActionsMenu({
                 Report message
               </button>
             ) : null}
+            {canBlock ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onToggleBlock(msg.userId!, msg.sender);
+                  setOpen(false);
+                }}
+                className="block w-full rounded-lg px-3 py-2 text-left font-sans text-[13px] text-coral hover:bg-[#fff3eb]"
+              >
+                {isBlocked ? `Unblock ${msg.sender}` : `Block ${msg.sender}`}
+              </button>
+            ) : null}
             {canDelete ? (
               <button
                 type="button"
@@ -394,15 +411,19 @@ function MessageRunBubble({
   position,
   deletable,
   isAdmin,
+  isBlocked,
   onDelete,
   onReport,
+  onToggleBlock,
 }: {
   msg: ChatMessage;
   position: "only" | "first" | "middle" | "last";
   deletable?: boolean;
   isAdmin?: boolean;
+  isBlocked?: boolean;
   onDelete?: (id: string, mine: boolean) => void;
   onReport?: (msg: ChatMessage) => void;
+  onToggleBlock?: (userId: string, name: string) => void;
 }) {
   const showTs = position === "only" || position === "last";
   if (msg.deleted) {
@@ -427,7 +448,15 @@ function MessageRunBubble({
         >
           {msg.body}
         </div>
-        <MessageActionsMenu msg={msg} deletable={deletable} isAdmin={isAdmin} onDelete={onDelete} onReport={onReport} />
+        <MessageActionsMenu
+          msg={msg}
+          deletable={deletable}
+          isAdmin={isAdmin}
+          isBlocked={isBlocked}
+          onDelete={onDelete}
+          onReport={onReport}
+          onToggleBlock={onToggleBlock}
+        />
       </div>
       {showTs ? <div className={`mt-1 text-[10px] text-muted-2 ${msg.mine ? "text-right" : "pl-0.5"}`}>{msg.ts}</div> : null}
     </div>
@@ -443,21 +472,26 @@ function MessageRunView({
   memberInfo,
   isDeletable,
   isAdmin,
+  blockedIds,
   onDelete,
   onReport,
   onSenderClick,
+  onToggleBlock,
 }: {
   run: MessageRun;
   memberInfo: Record<string, MemberInfo>;
   isDeletable: (msg: ChatMessage) => boolean;
   isAdmin?: boolean;
+  blockedIds?: Set<string>;
   onDelete?: (id: string, mine: boolean) => void;
   onReport?: (msg: ChatMessage) => void;
   /** Opens the profile peek card (§5) - passed the click event so the card
    * can position itself near the tap. */
   onSenderClick?: (senderId: string, senderName: string, event: React.MouseEvent) => void;
+  onToggleBlock?: (userId: string, name: string) => void;
 }) {
   const info = run.senderId ? memberInfo[run.senderId] : undefined;
+  const isBlocked = !!run.senderId && !!blockedIds?.has(run.senderId);
   const badge = run.senderId ? badgeForRank(info?.joinRank) : null;
   const showPride = !run.mine && !badge && info?.lgbtq;
   const canOpenSender = !run.mine && !!run.senderId && !!onSenderClick;
@@ -505,8 +539,10 @@ function MessageRunView({
             position={run.items.length === 1 ? "only" : i === 0 ? "first" : i === run.items.length - 1 ? "last" : "middle"}
             deletable={isDeletable(m)}
             isAdmin={isAdmin}
+            isBlocked={isBlocked}
             onDelete={onDelete}
             onReport={onReport}
+            onToggleBlock={onToggleBlock}
           />
         ))}
       </div>
@@ -1329,10 +1365,22 @@ function ChatAppInner() {
         `Block ${targetName}? They won't be able to message you, and you won't be able to message them. You can unblock them later.`
       );
       if (!confirmed) return;
-      await supabase.from("blocked_users").insert({ blocker_id: userId, blocked_id: targetId });
+      const { error } = await supabase.from("blocked_users").insert({ blocker_id: userId, blocked_id: targetId });
+      if (error) {
+        // Only reflect the block in state (and thus the composer/menus) once
+        // it's actually saved - showing "blocked" locally while the insert
+        // silently failed would leave messages going through with no
+        // enforcement behind the UI.
+        window.alert("Couldn't block this person. Please try again.");
+        return;
+      }
       setBlockedIds((prev) => new Set(prev).add(targetId));
     } else {
-      await supabase.from("blocked_users").delete().eq("blocker_id", userId).eq("blocked_id", targetId);
+      const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", userId).eq("blocked_id", targetId);
+      if (error) {
+        window.alert("Couldn't unblock this person. Please try again.");
+        return;
+      }
       setBlockedIds((prev) => {
         const next = new Set(prev);
         next.delete(targetId);
@@ -1759,9 +1807,11 @@ function ChatAppInner() {
                     memberInfo={memberInfo}
                     isDeletable={(m) => realIds.has(m.id)}
                     isAdmin={isAdmin}
+                    blockedIds={blockedIds}
                     onDelete={deleteGroupMessage}
                     onSenderClick={openProfilePeek}
                     onReport={reportGroupMessage}
+                    onToggleBlock={toggleBlock}
                   />
                 </div>
               ))}
@@ -1859,9 +1909,11 @@ function ChatAppInner() {
                   memberInfo={memberInfo}
                   isDeletable={() => true}
                   isAdmin={isAdmin}
+                  blockedIds={blockedIds}
                   onDelete={deleteDmMessage}
                   onSenderClick={openProfilePeek}
                   onReport={reportDmMessage}
+                  onToggleBlock={toggleBlock}
                 />
               ))}
             </div>
