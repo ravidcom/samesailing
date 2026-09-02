@@ -35,11 +35,8 @@ export default async function SailingResultPage({
   if (!sailing) notFound();
 
   const supabase = createServerClient();
-  const { count } = await supabase
-    .from("joined_sailings")
-    .select("id", { count: "exact", head: true })
-    .eq("sailing_id", sailing.id);
-  const n = count ?? 0;
+  const { data: passengerRows } = await supabase.rpc("get_sailing_passengers", { p_sailing_id: sailing.id });
+  const n = (passengerRows as { user_id: string }[] | null)?.length ?? 0;
   const dense = n >= MIN_BROWSE_THRESHOLD;
   const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
 

@@ -9,6 +9,16 @@ import { passengerFromProfile } from "@/lib/passengers";
 import { createServerClient } from "@/lib/supabase/server";
 import type { OnboardingProfile } from "@/lib/auth-context";
 
+/** Return shape of the get_sailing_passengers() RPC - supabase-js can't
+ * infer this on its own since the client isn't given a generated Database
+ * type, so every .rpc() call below pins it explicitly via .returns(). */
+type SailingPassengerRow = {
+  user_id: string;
+  profile: OnboardingProfile | null;
+  join_rank: number | null;
+  joined_at: string;
+};
+
 /** "October 25, 2026" -> "Oct 25, 2026" - the header meta line wants the
  * abbreviated month but (unlike the chat sidebar's shortDate()) keeps the
  * year, since there's no other date context on this compact card. */
@@ -21,10 +31,10 @@ export async function generateMetadata({ params }: PageProps<"/sailing/[id]/boar
   const { id } = await params;
   const sailing = await getSailingById(id);
   if (!sailing) return {};
-  const { count } = await createServerClient()
-    .from("joined_sailings")
-    .select("id", { count: "exact", head: true })
-    .eq("sailing_id", sailing.id);
+  const { data: metaPassengerRows } = await createServerClient().rpc("get_sailing_passengers", {
+    p_sailing_id: sailing.id,
+  });
+  const count = (metaPassengerRows as SailingPassengerRow[] | null)?.length ?? 0;
   const title = `${sailing.shipName} passengers - ${sailing.date}`;
   const description =
     count && count > 0
@@ -45,12 +55,10 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
   if (!sailing) notFound();
 
   const supabase = createServerClient();
-  const { data: rows } = await supabase
-    .from("joined_sailings")
-    .select("user_id,profile,join_rank")
-    .eq("sailing_id", sailing.id);
+  const { data: rpcRows } = await supabase.rpc("get_sailing_passengers", { p_sailing_id: sailing.id });
+  const rows = rpcRows as SailingPassengerRow[] | null;
   const joined = (rows ?? []).filter(
-    (r): r is { user_id: string; profile: OnboardingProfile; join_rank: number | null } => !!r.profile
+    (r): r is SailingPassengerRow & { profile: OnboardingProfile } => !!r.profile
   );
 
   // Display names and avatars are account-level (lib/displayName.ts,

@@ -42,6 +42,16 @@ type DmMessageRow = {
   created_at: string;
 };
 
+/** Return shape of the get_sailing_passengers() RPC - supabase-js can't
+ * infer this on its own since the client isn't given a generated Database
+ * type, so every .rpc() call below pins it explicitly via .returns(). */
+type SailingPassengerRow = {
+  user_id: string;
+  profile: OnboardingProfile | null;
+  join_rank: number | null;
+  joined_at: string;
+};
+
 type DmThreadSummary = {
   id: string;
   otherUserId: string;
@@ -187,12 +197,8 @@ async function fetchDmThreads(
   const otherIds = threads.map((t) => (t.user_a === myId ? t.user_b : t.user_a));
   const threadIds = threads.map((t) => t.id);
 
-  const [{ data: profiles }, { data: nameRows }, { data: lastMsgs }] = await Promise.all([
-    supabase
-      .from("joined_sailings")
-      .select("user_id,profile,join_rank")
-      .eq("sailing_id", sailingId)
-      .in("user_id", otherIds),
+  const [{ data: sailingPassengersRaw }, { data: nameRows }, { data: lastMsgs }] = await Promise.all([
+    supabase.rpc("get_sailing_passengers", { p_sailing_id: sailingId }),
     supabase.from("public_profiles").select("id,name,name_mode,nickname,avatar,avatar_tint").in("id", otherIds),
     supabase
       .from("dm_messages")
@@ -201,10 +207,13 @@ async function fetchDmThreads(
       .order("created_at", { ascending: false }),
   ]);
 
+  const sailingPassengers = sailingPassengersRaw as SailingPassengerRow[] | null;
+  const otherIdSet = new Set(otherIds);
+  const relevantPassengers = (sailingPassengers ?? []).filter((p) => otherIdSet.has(p.user_id));
   const profileByUser = new Map<string, OnboardingProfile | null>(
-    (profiles ?? []).map((p) => [p.user_id, p.profile as OnboardingProfile | null])
+    relevantPassengers.map((p) => [p.user_id, p.profile as OnboardingProfile | null])
   );
-  const joinRankByUser = new Map<string, number | null>((profiles ?? []).map((p) => [p.user_id, p.join_rank]));
+  const joinRankByUser = new Map<string, number | null>(relevantPassengers.map((p) => [p.user_id, p.join_rank]));
   const nameFieldsByUser = new Map(
     (nameRows ?? []).map((r) => [
       r.id,
@@ -1090,10 +1099,9 @@ function ChatAppInner() {
     if (!activeSailing) return;
     let cancelled = false;
     supabase
-      .from("joined_sailings")
-      .select("user_id,join_rank,profile,joined_at")
-      .eq("sailing_id", activeSailing.id)
-      .then(async ({ data }) => {
+      .rpc("get_sailing_passengers", { p_sailing_id: activeSailing.id })
+      .then(async ({ data: rawData }) => {
+        const data = rawData as SailingPassengerRow[] | null;
         if (cancelled || !data) return;
         const userIds = data.map((r) => r.user_id);
         const { data: profileRows } = await supabase.from("public_profiles").select("id,avatar,avatar_tint").in("id", userIds);

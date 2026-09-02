@@ -975,3 +975,46 @@ drop policy if exists "Anyone can view display-name fields" on profiles;
 create policy "Admins can view all profiles"
   on profiles for select
   using (is_admin());
+
+-- "Anyone can browse sailing passengers" (using (true), no auth required,
+-- no sailing scoping) let anyone pull EVERY sailing's passenger profiles -
+-- including kids' ages/genders and an LGBTQ+ flag - in one request,
+-- across the whole platform. The app itself always scoped this to one
+-- sailing_id at a time (the "browse before join" board), but RLS has no
+-- way to require "the caller filtered by sailing_id" - a row policy
+-- can't see the calling query's WHERE clause, only decide if a given ROW
+-- is visible at all regardless of what else was asked for. A
+-- security-definer RPC that takes exactly one sailing_id and returns only
+-- that sailing's rows closes the bulk path while keeping the legitimate
+-- one working unchanged - every caller in the app already had this exact
+-- shape (select ... where sailing_id = one value), just enforced
+-- client-side instead of at the database.
+create or replace function get_sailing_passengers(p_sailing_id text)
+returns table (
+  user_id uuid,
+  profile jsonb,
+  join_rank int,
+  joined_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select user_id, profile, join_rank, joined_at
+  from joined_sailings
+  where sailing_id = p_sailing_id;
+$$;
+
+grant execute on function get_sailing_passengers(text) to authenticated, anon;
+
+-- Narrowed to admins only - other-user/other-sailing lookups now go
+-- through get_sailing_passengers() above instead. The admin Users tab
+-- still needs a cross-sailing view (to count each user's total sailings),
+-- which is exactly the bulk access this policy used to hand out to
+-- everyone.
+drop policy if exists "Anyone can browse sailing passengers" on joined_sailings;
+
+create policy "Admins can view all joined sailings"
+  on joined_sailings for select
+  using (is_admin());
