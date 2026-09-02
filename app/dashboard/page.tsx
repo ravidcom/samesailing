@@ -80,9 +80,6 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
-        <div className="mt-3 text-xs text-muted-2">
-          Max 2 sailings per ship · 5 total across all ships.
-        </div>
 
         <Link
           href="/"

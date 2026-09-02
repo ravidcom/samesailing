@@ -327,13 +327,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (mySailings.some((s) => s.id === sailing.id)) {
       return { error: "You've already joined this sailing." };
     }
-    const sameShipCount = mySailings.filter((s) => s.shipName === sailing.shipName).length;
-    if (sameShipCount >= 2) {
-      return { error: `You've already joined 2 sailings on ${sailing.shipName} — that's the limit per ship.` };
-    }
-    if (mySailings.length >= 5) {
-      return { error: "You've reached the limit of 5 joined sailings. Leave one to add another." };
-    }
     // A plain insert, not an upsert - mySailings already ruled out an
     // existing row above, and letting the table's own (user_id, sailing_id)
     // unique constraint reject a genuine race (e.g. a second tab joining at
