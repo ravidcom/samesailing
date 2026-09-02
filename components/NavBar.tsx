@@ -28,7 +28,7 @@ const navLinkActive = "bg-[#dcf0f1] text-teal-dark font-semibold hover:bg-[#dcf0
 export default function NavBar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { loading, loggedIn, user, mySailings, hasUnreadMessages, isAdmin, signOut } = useAuth();
+  const { loading, loggedIn, user, mySailings, unreadCount, isAdmin, signOut } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [shared, setShared] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -107,8 +107,13 @@ export default function NavBar() {
               </Link>
               <Link href="/chat" className={`relative ${navLinkBase} ${chatActive ? navLinkActive : ""}`}>
                 Chat
-                {hasUnreadMessages ? (
-                  <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-coral" aria-label="Unread messages" />
+                {unreadCount > 0 ? (
+                  <span
+                    className="absolute -top-1.5 -right-1.5 flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-white bg-coral px-1 text-[10px] font-bold leading-none text-white"
+                    aria-label={`${unreadCount} unread messages`}
+                  >
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
                 ) : null}
               </Link>
             </div>
