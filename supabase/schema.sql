@@ -882,7 +882,12 @@ create policy "Users can block someone"
 create schema if not exists private;
 grant usage on schema private to authenticated;
 
-drop function if exists is_blocked_pair(uuid, uuid);
+-- cascade: the two policies below still reference the old public
+-- function at this point (they're only redefined further down in this
+-- same script) - a plain drop fails on that dependency, and cascade is
+-- safe here specifically because both policies get fully recreated later
+-- in this file regardless.
+drop function if exists is_blocked_pair(uuid, uuid) cascade;
 
 create function private.is_blocked_pair(user_x uuid, user_y uuid)
 returns boolean
