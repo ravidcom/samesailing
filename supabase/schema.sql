@@ -1018,3 +1018,101 @@ drop policy if exists "Anyone can browse sailing passengers" on joined_sailings;
 create policy "Admins can view all joined sailings"
   on joined_sailings for select
   using (is_admin());
+
+-- Remaining medium/low findings from the security audit --------------------
+
+-- `reason` and `note` were validated client-side only (ReportModal's
+-- REASONS list and its 300-char NOTE_MAX_LENGTH) - a direct API call could
+-- submit an arbitrary reason string or an unbounded note/preview.
+alter table reports
+  add constraint reports_reason_check
+    check (reason in ('Harassment or abuse', 'Inappropriate content', 'Spam or scam', 'Fake profile', 'Other')),
+  add constraint reports_note_length check (note is null or length(note) <= 300),
+  add constraint reports_message_preview_length check (message_preview is null or length(message_preview) <= 2000);
+
+-- A cheap per-account throttle - not real rate limiting (that belongs at
+-- the edge/infra layer), but stops one signed-in account from filing an
+-- unbounded number of reports against people.
+create or replace function enforce_report_rate_limit()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (
+    select count(*) from reports
+    where reporter_id = new.reporter_id and created_at > now() - interval '1 hour'
+  ) >= 20 then
+    raise exception 'Too many reports submitted recently - please try again later.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists reports_rate_limit on reports;
+create trigger reports_rate_limit
+  before insert on reports
+  for each row execute function enforce_report_rate_limit();
+
+-- contact_messages has no auth at all (anyone can submit, logged in or
+-- not), so there's no account to scope a throttle to - length caps are
+-- the only DB-level mitigation available without adding IP tracking,
+-- which this app has nowhere to source from at the database layer.
+alter table contact_messages
+  add constraint contact_messages_name_length check (length(name) <= 200),
+  add constraint contact_messages_email_length check (length(email) <= 320),
+  add constraint contact_messages_message_length check (length(message) <= 5000);
+
+-- Soft-delete-only enforcement: "Users can soft-delete their own group
+-- messages" / "...their own DMs" only scoped WHO could update a message
+-- row, not WHAT they could change in it - `body`, `sender_label`, even
+-- `created_at` were all rewritable via a direct PATCH, though the only
+-- intended use is flipping `deleted` to true. `to_jsonb(...) - 'deleted'`
+-- works generically across both tables despite their differing column
+-- sets (group_messages uses `user_id`, dm_messages uses `sender_id`), so
+-- one function covers both via the triggers below.
+create or replace function enforce_soft_delete_only()
+returns trigger
+language plpgsql
+as $$
+begin
+  if (to_jsonb(new) - 'deleted') <> (to_jsonb(old) - 'deleted') then
+    raise exception 'Messages can only be soft-deleted (set deleted = true), not edited.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists group_messages_soft_delete_only on group_messages;
+create trigger group_messages_soft_delete_only
+  before update on group_messages
+  for each row execute function enforce_soft_delete_only();
+
+drop trigger if exists dm_messages_soft_delete_only on dm_messages;
+create trigger dm_messages_soft_delete_only
+  before update on dm_messages
+  for each row execute function enforce_soft_delete_only();
+
+-- profiles.created_at was user-writable via "Users can update their own
+-- profile" (using (true) for every column, no with-check at all) - it
+-- feeds admin_new_users_range()/admin_stats()'s signup-date counts, so a
+-- user could otherwise misdate their own signup. Silently pinned back to
+-- its original value rather than raising - unlike the message trigger
+-- above, there's no legitimate "edit" action here to reject loudly, and
+-- every real profile update already targets specific columns rather than
+-- ever touching created_at, so this is pure defense-in-depth.
+create or replace function protect_profile_created_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.created_at := old.created_at;
+  return new;
+end;
+$$;
+
+drop trigger if exists profiles_protect_created_at on profiles;
+create trigger profiles_protect_created_at
+  before update on profiles
+  for each row execute function protect_profile_created_at();
