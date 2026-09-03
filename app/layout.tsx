@@ -66,6 +66,10 @@ const ORGANIZATION_JSON_LD = {
   alternateName: "SameSailing.com",
   url: "https://samesailing.com",
   logo: "https://samesailing.com/icons/512",
+  // Links this entity to its other web presences, so Google can connect
+  // them to the same "SameSailing" entity instead of treating each in
+  // isolation.
+  sameAs: ["https://www.facebook.com/profile.php?id=61593959883367"],
 };
 
 const WEBSITE_JSON_LD = {
