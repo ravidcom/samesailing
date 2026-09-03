@@ -80,8 +80,34 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
   const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
   const lineLabel = `${sailing.line} · ${sailing.nights} Nights`.toUpperCase();
 
+  // Lets Google show a path (Home > Ship - Date > Passengers) instead of
+  // the raw URL for this page's search result.
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://samesailing.com" },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: `${sailing.shipName} - ${sailing.date}`,
+        item: `https://samesailing.com/sailing/${sailing.id}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: "Passengers",
+        item: `https://samesailing.com/sailing/${sailing.id}/board`,
+      },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <NavBar />
       <main className="pt-[62px]">
         <div className="px-4 pt-3.5 sm:px-8 md:px-12">

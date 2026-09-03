@@ -39,8 +39,28 @@ export default async function SailingResultPage({
   const dense = n >= MIN_BROWSE_THRESHOLD;
   const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
 
+  // Lets Google show a path (Home > Ship - Date) instead of the raw URL
+  // for this page's search result.
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: "https://samesailing.com" },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: `${sailing.shipName} - ${sailing.date}`,
+        item: `https://samesailing.com/sailing/${sailing.id}`,
+      },
+    ],
+  };
+
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+      />
       <NavBar />
       <main className="flex min-h-screen items-start justify-center px-4 pt-[100px] pb-16">
         <div className="w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white shadow-[0_20px_50px_rgba(42,32,28,.08)]">
