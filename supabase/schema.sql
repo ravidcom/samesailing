@@ -1132,3 +1132,197 @@ create trigger profiles_protect_created_at
 create policy "Users can view their own last-seen timestamp"
   on user_activity for select
   using (auth.uid() = user_id);
+
+-- Interest groups: one room per party type (plus one for LGBTQ+ members)
+-- per sailing, unlocking once 5 qualifying travelers have joined. A room
+-- that opens stays open forever, even if members later leave or change
+-- party type - see check_and_open_sailing_group() below, which is the
+-- ONLY place a live count is compared against the threshold.
+
+create table if not exists sailing_groups (
+  sailing_id text not null,
+  party_type text not null check (party_type in ('solo', 'couple', 'friends', 'family', 'lgbtq')),
+  opened_at timestamptz,
+  primary key (sailing_id, party_type)
+);
+
+alter table sailing_groups enable row level security;
+
+create policy "Sailing members can view their sailing's group state"
+  on sailing_groups for select
+  using (
+    exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = auth.uid()
+        and joined_sailings.sailing_id = sailing_groups.sailing_id
+    )
+  );
+
+-- Enable realtime so a room's row flips from locked to open live in every
+-- open tab, without a refresh.
+alter publication supabase_realtime add table sailing_groups;
+
+-- Adds room-scoped messages to the existing group_messages table (null =
+-- the main ship chat, unchanged). Reusing this table means room threads
+-- get realtime, soft-delete-only enforcement, and the report/notify
+-- machinery for free - RLS below is what actually restricts a room's rows
+-- to its own qualifying travelers.
+alter table group_messages add column if not exists room_type text
+  check (room_type in ('solo', 'couple', 'friends', 'family', 'lgbtq'));
+
+create index if not exists group_messages_room_idx on group_messages (sailing_id, room_type);
+
+-- The one-way latch. `security definer` so it can read every passenger's
+-- profile on this sailing (a regular user can no longer SELECT other
+-- people's joined_sailings rows directly) purely to compute a count - it
+-- never returns raw passenger data, only whether a room is open.
+create or replace function check_and_open_sailing_group(p_sailing_id text, p_party_type text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_qualifying int;
+  v_just_opened boolean;
+begin
+  if p_party_type not in ('solo', 'couple', 'friends', 'family', 'lgbtq') then
+    raise exception 'invalid party_type';
+  end if;
+  if not exists (select 1 from joined_sailings where user_id = auth.uid() and sailing_id = p_sailing_id) then
+    raise exception 'not a member of this sailing';
+  end if;
+
+  insert into sailing_groups (sailing_id, party_type, opened_at)
+    values (p_sailing_id, p_party_type, null)
+    on conflict (sailing_id, party_type) do nothing;
+
+  if p_party_type = 'lgbtq' then
+    select count(*) into v_qualifying from joined_sailings
+      where sailing_id = p_sailing_id and (profile ->> 'lgbtq')::boolean is true;
+  else
+    select count(*) into v_qualifying from joined_sailings
+      where sailing_id = p_sailing_id and profile ->> 'partyType' = p_party_type;
+  end if;
+
+  v_just_opened := false;
+  if v_qualifying >= 5 then
+    -- The `where opened_at is null` makes this update race-safe: if two
+    -- callers hit this at once, only one of them can actually flip the
+    -- row, so only one notification batch ever fires.
+    update sailing_groups
+      set opened_at = now()
+      where sailing_id = p_sailing_id and party_type = p_party_type and opened_at is null
+      returning true into v_just_opened;
+  end if;
+
+  if v_just_opened is true then
+    insert into notifications (user_id, kind, sailing_id, sender_label, preview)
+    select js.user_id, 'group_message', p_sailing_id, 'SameSailing',
+      'The ' || p_party_type || ' travelers room on this sailing just opened.'
+    from joined_sailings js
+    join profiles p on p.id = js.user_id
+    where js.sailing_id = p_sailing_id
+      and p.notify_digest
+      and (
+        (p_party_type <> 'lgbtq' and js.profile ->> 'partyType' = p_party_type)
+        or (p_party_type = 'lgbtq' and (js.profile ->> 'lgbtq')::boolean is true)
+      );
+  end if;
+
+  return exists(
+    select 1 from sailing_groups
+    where sailing_id = p_sailing_id and party_type = p_party_type and opened_at is not null
+  );
+end;
+$$;
+grant execute on function check_and_open_sailing_group(text, text) to authenticated;
+
+-- Checks all 5 room types whenever someone joins a sailing or changes
+-- their party type/lgbtq flag - this is what makes a room "open on its
+-- own" the moment the 5th qualifying traveler joins, rather than waiting
+-- for someone to happen to open the chat screen next.
+create or replace function check_sailing_groups_after_join()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  perform check_and_open_sailing_group(new.sailing_id, 'solo');
+  perform check_and_open_sailing_group(new.sailing_id, 'couple');
+  perform check_and_open_sailing_group(new.sailing_id, 'friends');
+  perform check_and_open_sailing_group(new.sailing_id, 'family');
+  perform check_and_open_sailing_group(new.sailing_id, 'lgbtq');
+  return new;
+end;
+$$;
+
+drop trigger if exists joined_sailings_check_groups on joined_sailings;
+create trigger joined_sailings_check_groups
+  after insert or update on joined_sailings
+  for each row execute function check_sailing_groups_after_join();
+
+-- Extend group_messages' existing policies so a room's rows are only
+-- visible to/postable by travelers whose CURRENT party type (or lgbtq
+-- flag) matches that room - main-chat rows (room_type is null) keep the
+-- exact behavior they already had.
+drop policy if exists "Sailing members can read group messages" on group_messages;
+create policy "Sailing members can read group messages"
+  on group_messages for select
+  using (
+    exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = auth.uid()
+        and joined_sailings.sailing_id = group_messages.sailing_id
+        and (
+          group_messages.room_type is null
+          or joined_sailings.profile ->> 'partyType' = group_messages.room_type
+          or (group_messages.room_type = 'lgbtq' and (joined_sailings.profile ->> 'lgbtq')::boolean is true)
+        )
+    )
+  );
+
+drop policy if exists "Sailing members can post group messages" on group_messages;
+create policy "Sailing members can post group messages"
+  on group_messages for insert
+  with check (
+    auth.uid() = user_id
+    and not is_banned()
+    and exists (
+      select 1 from joined_sailings
+      where joined_sailings.user_id = auth.uid()
+        and joined_sailings.sailing_id = group_messages.sailing_id
+        and (
+          room_type is null
+          or joined_sailings.profile ->> 'partyType' = room_type
+          or (room_type = 'lgbtq' and (joined_sailings.profile ->> 'lgbtq')::boolean is true)
+        )
+    )
+  );
+
+-- Room-opened notifications were previously scoped to the whole sailing -
+-- extend to only the room's own qualifying members (main chat, room_type
+-- is null, keeps notifying everyone as before).
+create or replace function notify_group_message()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into notifications (user_id, kind, sailing_id, sender_label, preview)
+  select js.user_id, 'group_message', new.sailing_id, new.sender_label, left(new.body, 140)
+  from joined_sailings js
+  join profiles p on p.id = js.user_id
+  where js.sailing_id = new.sailing_id
+    and js.user_id <> new.user_id
+    and p.notify_digest
+    and (
+      new.room_type is null
+      or js.profile ->> 'partyType' = new.room_type
+      or (new.room_type = 'lgbtq' and (js.profile ->> 'lgbtq')::boolean is true)
+    );
+  return new;
+end;
+$$;
