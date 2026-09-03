@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, type OnboardingProfile, type PartyType } from "@/lib/auth-context";
@@ -17,6 +17,7 @@ import { badgeForRank } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
 import InstallAppButton from "@/components/ui/InstallAppButton";
 import ReportModal, { type ReportTarget } from "@/components/ui/ReportModal";
+import Modal from "@/components/ui/Modal";
 import Avatar from "@/components/ui/Avatar";
 import PrideStripe from "@/components/ui/PrideStripe";
 import { sanitizeAvatar, DEFAULT_AVATAR_EMOJI, DEFAULT_AVATAR_TINT } from "@/lib/avatars";
@@ -30,7 +31,37 @@ type GroupMessageRow = {
   body: string;
   deleted: boolean;
   created_at: string;
+  room_type: string | null;
 };
+
+/** An interest-group room's party type, plus "lgbtq" for the LGBTQ+ room. */
+type RoomType = PartyType | "lgbtq";
+const ROOM_TYPES: RoomType[] = ["solo", "couple", "friends", "family", "lgbtq"];
+const ROOM_LABELS: Record<RoomType, string> = {
+  ...PARTY_LABELS,
+  lgbtq: "LGBTQ+ travelers",
+};
+const ROOM_NOUN: Record<RoomType, string> = {
+  solo: "solo traveler",
+  couple: "couple",
+  friends: "friend",
+  family: "family",
+  lgbtq: "LGBTQ+ traveler",
+};
+const ROOM_NOUN_PLURAL: Record<RoomType, string> = {
+  solo: "solo travelers",
+  couple: "couples",
+  friends: "friends",
+  family: "families",
+  lgbtq: "LGBTQ+ travelers",
+};
+const ROOM_TINT: Record<PartyType, string> = {
+  solo: "#e2f2f3",
+  couple: "#fdeadf",
+  friends: "#fdf2d8",
+  family: "#e6f3ec",
+};
+const ROOM_UNLOCK = 5;
 
 type DmMessageRow = {
   id: string;
@@ -412,6 +443,111 @@ function MessageActionsMenu({
         </>
       ) : null}
     </div>
+  );
+}
+
+/** One row in the INTEREST GROUPS list. Locked rows dim (never disable) in
+ * two stages - neutral grey far from unlocking, full party tint at 4 of 5 -
+ * so the row visibly warms as it fills. The lock is inline SVG, never the
+ * 🔒 emoji, since an emoji ignores `color` and can't show the teal
+ * four-of-five state. */
+function GroupRoomRow({
+  roomType,
+  count,
+  openedAt,
+  isLast,
+  active,
+  onClick,
+}: {
+  roomType: RoomType;
+  count: number;
+  openedAt: string | null;
+  isLast: boolean;
+  active: boolean;
+  onClick: () => void;
+}) {
+  // Snapshotting "now" once at mount (rather than calling Date.now() in the
+  // render body directly) keeps this component pure - fine for a cosmetic
+  // 7-day badge, which doesn't need per-render precision.
+  const [renderedAt] = useState(() => Date.now());
+  const isOpen = !!openedAt;
+  const justOpened = isOpen && renderedAt - new Date(openedAt).getTime() < 7 * 86400000;
+  const nearlyThere = !isOpen && count === ROOM_UNLOCK - 1;
+  const dim = !isOpen && !nearlyThere;
+  const lockColor = nearlyThere ? "#0E8C99" : "#93aeb1";
+
+  const tile =
+    roomType === "lgbtq" ? (
+      <div
+        className="h-[42px] w-[42px] shrink-0 rounded-[13px]"
+        style={{ background: "linear-gradient(180deg,#e8503a 0 16.66%,#f0913f 16.66% 33.33%,#f5d34a 33.33% 50%,#4ea85c 50% 66.66%,#3f76c4 66.66% 83.33%,#8a4fa8 83.33% 100%)", boxShadow: "0 0 0 1px rgba(42,32,28,.12)", opacity: dim ? 0.5 : 1 }}
+      />
+    ) : (
+      <div
+        className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[13px] text-[19px]"
+        style={{ background: dim ? "#f1f6f6" : ROOM_TINT[roomType], opacity: dim ? 0.5 : 1 }}
+      >
+        {PARTY_ICON[roomType]}
+      </div>
+    );
+
+  let sub: string;
+  let subClass: string;
+  let trailing: ReactNode;
+  if (dim) {
+    sub = `${count} of ${ROOM_UNLOCK} aboard · opens at ${ROOM_UNLOCK}`;
+    subClass = "text-[#6f9297]";
+    trailing = <RoomLockIcon color={lockColor} />;
+  } else if (nearlyThere) {
+    sub = "1 more traveler and this opens";
+    subClass = "font-semibold text-[#0a6e79]";
+    trailing = <RoomLockIcon color={lockColor} />;
+  } else if (justOpened) {
+    sub = `${count} ${count === 1 ? ROOM_NOUN[roomType] : ROOM_NOUN_PLURAL[roomType]} aboard · say hello first`;
+    subClass = "font-semibold text-[#2F8F6B]";
+    trailing = (
+      <span className="rounded-full border border-[#C6E3D3] bg-[#E6F3EC] px-1.5 py-0.5 text-[9px] font-extrabold tracking-[.05em] text-[#2F8F6B] uppercase">
+        New
+      </span>
+    );
+  } else {
+    sub = `${count} traveler${count === 1 ? "" : "s"} in this room`;
+    subClass = "text-[#5f8288]";
+    trailing = <span className="text-[#9fb9bc]">&#8250;</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex w-full items-center gap-2.5 px-3 py-2.75 text-left transition-colors hover:bg-input ${
+        active ? "bg-teal-tint" : justOpened ? "bg-[#f4fbf7]" : isOpen ? "bg-[#f8fdfd]" : "bg-white"
+      }`}
+    >
+      {!isLast ? <span className="pointer-events-none absolute inset-x-0 bottom-0 ml-[58px] h-px bg-[#eef6f6]" /> : null}
+      {tile}
+      <div className="min-w-0 flex-1">
+        <div className={`truncate text-sm ${isOpen ? "font-bold" : "font-semibold"} text-charcoal`}>{ROOM_LABELS[roomType]}</div>
+        <div className={`truncate text-[11.5px] ${subClass}`}>{sub}</div>
+        {dim || nearlyThere ? (
+          <div className="mt-1 flex gap-[3px]">
+            {Array.from({ length: ROOM_UNLOCK }).map((_, i) => (
+              <div key={i} className="h-1 w-[15px] rounded-full" style={{ background: i < count ? "#0E8C99" : "#dfebec" }} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center">{trailing}</div>
+    </button>
+  );
+}
+
+function RoomLockIcon({ color }: { color: string }) {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke={color} strokeWidth="1.5" />
+      <rect x="3" y="7" width="10" height="7" rx="2" fill={color} />
+    </svg>
   );
 }
 
@@ -832,11 +968,21 @@ function ChatAppInner() {
     [userId]
   );
 
-  const [pane, setPane] = useState<{ type: "group" } | { type: "dm"; id: string }>({ type: "group" });
+  const [pane, setPane] = useState<{ type: "group" } | { type: "dm"; id: string } | { type: "room"; roomType: RoomType }>({
+    type: "group",
+  });
   const [mobileShowingThread, setMobileShowingThread] = useState(false);
 
   const [realGroupMsgs, setRealGroupMsgs] = useState<ChatMessage[]>([]);
   const [groupDraft, setGroupDraft] = useState("");
+
+  // Interest groups (per-sailing rooms, one per party type plus LGBTQ+):
+  // opened_at per type, kept live via realtime so a room flips from locked
+  // to open in every open tab without a reload.
+  const [roomOpenedAt, setRoomOpenedAt] = useState<Partial<Record<RoomType, string>>>({});
+  const [roomMessages, setRoomMessages] = useState<ChatMessage[]>([]);
+  const [roomDraft, setRoomDraft] = useState("");
+  const [lockedSheetType, setLockedSheetType] = useState<RoomType | null>(null);
   // Pioneer badge rank, avatar, and LGBTQ+ status per member of the active
   // sailing, for the group thread's sender line (§3.3: one badge slot -
   // founding crew, else a pride bar, never both) and gutter avatar (§3.2).
@@ -883,10 +1029,35 @@ function ChatAppInner() {
   const travelerCount = useTravelerCount(activeSailing?.id ?? null);
   const groupSenderName = myDisplayName(activeSailing?.profile?.partyType ?? null).name;
 
+  // Interest groups: which rooms this traveler belongs to on the active
+  // sailing (their own party type, plus LGBTQ+ if they carry that flag),
+  // the live qualifying count per type (memberInfo already has everyone's
+  // partyType/lgbtq from get_sailing_passengers, so no extra fetch), and
+  // the currently-open room pane, if any.
+  const myRoomTypes = useMemo<RoomType[]>(() => {
+    const p = activeSailing?.profile;
+    if (!p) return [];
+    const types: RoomType[] = [p.partyType];
+    if (p.lgbtq) types.push("lgbtq");
+    return types;
+  }, [activeSailing]);
+  const roomCounts = useMemo(() => {
+    const counts: Partial<Record<RoomType, number>> = {};
+    const members = Object.values(memberInfo);
+    for (const t of ROOM_TYPES) {
+      counts[t] = t === "lgbtq" ? members.filter((m) => m.lgbtq).length : members.filter((m) => m.partyType === t).length;
+    }
+    return counts as Record<RoomType, number>;
+  }, [memberInfo]);
+  const activeRoomType = pane.type === "room" ? pane.roomType : null;
+  const roomRuns = useMemo(() => buildMessageRuns(roomMessages), [roomMessages]);
+
   const groupContainerRef = useRef<HTMLDivElement>(null);
   const dmContainerRef = useRef<HTMLDivElement>(null);
+  const roomContainerRef = useRef<HTMLDivElement>(null);
   const groupPillRef = useRef<HTMLButtonElement>(null);
   const dmPillRef = useRef<HTMLButtonElement>(null);
+  const roomPillRef = useRef<HTMLButtonElement>(null);
   // The pane's own container div unmounts/remounts each time you switch
   // away and back (conditional {pane.type === "group" ? ... : null}
   // rendering), so a fresh (scrollTop-0) node needs a fresh jump-to-bottom
@@ -902,6 +1073,7 @@ function ChatAppInner() {
     pane.type === "group" ? (activeSailing?.id ?? null) : null
   );
   const dmScroll = useAutoScroll(dmContainerRef, dmPillRef, dmMessages.length, activeDmThreadId);
+  const roomScroll = useAutoScroll(roomContainerRef, roomPillRef, roomMessages.length, activeRoomType);
 
   const groupReadAt = activeSailing ? (readMap[`group:${activeSailing.id}`] ?? 0) : 0;
   const groupUnreadCount = realGroupMsgs.filter((m) => !m.mine && m.atMs && m.atMs > groupReadAt).length;
@@ -1040,6 +1212,7 @@ function ChatAppInner() {
     let cancelled = false;
 
     function upsert(row: GroupMessageRow) {
+      if (row.room_type != null) return; // interest-group rooms have their own state/effect
       const msg = rowToGroupMessage(row, userId);
       setRealGroupMsgs((prev) =>
         prev.some((m) => m.id === msg.id)
@@ -1050,8 +1223,9 @@ function ChatAppInner() {
 
     supabase
       .from("group_messages")
-      .select("id,sailing_id,user_id,sender_label,body,deleted,created_at")
+      .select("id,sailing_id,user_id,sender_label,body,deleted,created_at,room_type")
       .eq("sailing_id", activeSailing.id)
+      .is("room_type", null)
       .order("created_at", { ascending: true })
       .then(({ data }) => {
         if (cancelled || !data) return;
@@ -1087,6 +1261,107 @@ function ChatAppInner() {
       supabase.removeChannel(channel);
     };
   }, [activeSailing, supabase, userId]);
+
+  // Interest groups: load which rooms are open on the active sailing, and
+  // keep it live via realtime - a room flips from locked to open in every
+  // open tab the moment check_and_open_sailing_group() flips it server-side,
+  // with no reload needed.
+  useEffect(() => {
+    if (!activeSailing) return;
+    let cancelled = false;
+
+    supabase
+      .from("sailing_groups")
+      .select("party_type,opened_at")
+      .eq("sailing_id", activeSailing.id)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const next: Partial<Record<RoomType, string>> = {};
+        for (const row of data as { party_type: RoomType; opened_at: string | null }[]) {
+          if (row.opened_at) next[row.party_type] = row.opened_at;
+        }
+        setRoomOpenedAt(next);
+      });
+
+    const channel = supabase
+      .channel(`sailing_groups:${activeSailing.id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "sailing_groups", filter: `sailing_id=eq.${activeSailing.id}` },
+        (payload) => {
+          const row = payload.new as { party_type: RoomType; opened_at: string | null } | undefined;
+          if (!row) return;
+          setRoomOpenedAt((prev) => (row.opened_at ? { ...prev, [row.party_type]: row.opened_at } : prev));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [activeSailing, supabase]);
+
+  // Whichever interest-group room is currently open: load history +
+  // subscribe to realtime, same pattern as the DM thread effect above.
+  useEffect(() => {
+    if (!activeSailing || !activeRoomType) return;
+    let cancelled = false;
+
+    function upsert(row: GroupMessageRow) {
+      const msg = rowToGroupMessage(row, userId);
+      setRoomMessages((prev) =>
+        prev.some((m) => m.id === msg.id) ? prev.map((m) => (m.id === msg.id ? msg : m)) : [...prev, msg]
+      );
+    }
+
+    supabase
+      .from("group_messages")
+      .select("id,sailing_id,user_id,sender_label,body,deleted,created_at,room_type")
+      .eq("sailing_id", activeSailing.id)
+      .eq("room_type", activeRoomType)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setRoomMessages(data.map((row) => rowToGroupMessage(row, userId)));
+      });
+
+    const channel = supabase
+      .channel(`group_room:${activeSailing.id}:${activeRoomType}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "group_messages",
+          filter: `sailing_id=eq.${activeSailing.id}`,
+        },
+        (payload) => {
+          const row = payload.new as GroupMessageRow;
+          if (row.room_type === activeRoomType) upsert(row);
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "group_messages",
+          filter: `sailing_id=eq.${activeSailing.id}`,
+        },
+        (payload) => {
+          const row = payload.new as GroupMessageRow;
+          if (row.room_type === activeRoomType) upsert(row);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      setRoomMessages([]);
+      supabase.removeChannel(channel);
+    };
+  }, [activeSailing, activeRoomType, supabase, userId]);
 
   // Member lookup for the active sailing: join rank (Pioneer badge),
   // avatar, and LGBTQ+ status, so group-chat sender lines can show a
@@ -1366,6 +1641,16 @@ function ChatAppInner() {
     setDmSendError(false);
   }
 
+  function openGroupRoom(roomType: RoomType) {
+    if (!roomOpenedAt[roomType]) {
+      setLockedSheetType(roomType);
+      return;
+    }
+    setPane({ type: "room", roomType });
+    enterThreadHistory();
+    setMobileShowingThread(true);
+  }
+
   /** pop=false is for the popstate handler itself - it must never call
    * history.back(), or it would just re-trigger this same listener. */
   function backToList(pop = true) {
@@ -1528,7 +1813,16 @@ function ChatAppInner() {
     setRealGroupMsgs((prev) => [
       ...prev,
       rowToGroupMessage(
-        { id, sailing_id: activeSailing.id, user_id: userId, sender_label: senderLabel, body: text, deleted: false, created_at: createdAt },
+        {
+          id,
+          sailing_id: activeSailing.id,
+          user_id: userId,
+          sender_label: senderLabel,
+          body: text,
+          deleted: false,
+          created_at: createdAt,
+          room_type: null,
+        },
         userId
       ),
     ]);
@@ -1542,6 +1836,43 @@ function ChatAppInner() {
     if (error) {
       setGroupDraft(text);
       setRealGroupMsgs((prev) => prev.filter((m) => m.id !== id));
+    }
+  }
+
+  async function sendGroupRoom() {
+    const text = roomDraft.trim();
+    if (!text || !activeSailing || !userId || !activeRoomType) return;
+    setRoomDraft("");
+    const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    setRoomMessages((prev) => [
+      ...prev,
+      rowToGroupMessage(
+        {
+          id,
+          sailing_id: activeSailing.id,
+          user_id: userId,
+          sender_label: senderLabel,
+          body: text,
+          deleted: false,
+          created_at: createdAt,
+          room_type: activeRoomType,
+        },
+        userId
+      ),
+    ]);
+    const { error } = await supabase.from("group_messages").insert({
+      id,
+      sailing_id: activeSailing.id,
+      user_id: userId,
+      sender_label: senderLabel,
+      body: text,
+      room_type: activeRoomType,
+    });
+    if (error) {
+      setRoomDraft(text);
+      setRoomMessages((prev) => prev.filter((m) => m.id !== id));
     }
   }
 
@@ -1752,6 +2083,43 @@ function ChatAppInner() {
             </div>
           </button>
 
+          {myRoomTypes.length > 0 ? (
+            <>
+              <div className="flex items-center justify-between px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">
+                <span>INTEREST GROUPS</span>
+                {(() => {
+                  const openCount = myRoomTypes.filter((t) => roomOpenedAt[t]).length;
+                  const soonCount = myRoomTypes.filter((t) => !roomOpenedAt[t] && roomCounts[t] === ROOM_UNLOCK - 1).length;
+                  const parts = [
+                    openCount ? `${openCount} open` : null,
+                    soonCount ? `${soonCount} opening soon` : null,
+                  ].filter(Boolean);
+                  return parts.length ? <span className="normal-case tracking-normal text-[#8aa6aa]">{parts.join(", ")}</span> : null;
+                })()}
+              </div>
+              <div className="mx-3.5 mb-3 overflow-hidden rounded-2xl border border-[#e7f1f2] bg-white">
+                {[...myRoomTypes]
+                  .sort((a, b) => {
+                    const aOpen = !!roomOpenedAt[a], bOpen = !!roomOpenedAt[b];
+                    if (aOpen !== bOpen) return aOpen ? -1 : 1;
+                    if (aOpen) return (roomOpenedAt[b] ?? "").localeCompare(roomOpenedAt[a] ?? "");
+                    return (roomCounts[b] ?? 0) - (roomCounts[a] ?? 0);
+                  })
+                  .map((roomType, i) => (
+                    <GroupRoomRow
+                      key={roomType}
+                      roomType={roomType}
+                      count={roomCounts[roomType] ?? 0}
+                      openedAt={roomOpenedAt[roomType] ?? null}
+                      isLast={i === myRoomTypes.length - 1}
+                      active={pane.type === "room" && pane.roomType === roomType}
+                      onClick={() => openGroupRoom(roomType)}
+                    />
+                  ))}
+              </div>
+            </>
+          ) : null}
+
           {dmThreads.length === 0 ? (
             <div className="px-3.5 py-4 text-center text-xs leading-relaxed text-muted-2">
               Nobody messaged yet.{" "}
@@ -1956,6 +2324,99 @@ function ChatAppInner() {
         </div>
       ) : null}
 
+      {/* INTEREST GROUP ROOM PANE */}
+      {pane.type === "room" && activeSailing ? (
+        <div className={`flex-1 flex-col overflow-hidden md:flex ${mobileShowingThread ? "flex" : "hidden"}`}>
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4.5 py-2.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => backToList()}
+                className="mr-0.5 flex shrink-0 items-center gap-0.5 rounded-full py-1.5 pr-2.5 pl-1.5 font-sans text-[13px] font-semibold text-teal transition-colors hover:bg-[#f0f9f9] md:hidden"
+                aria-label="Back to all chats"
+              >
+                ‹ Chats
+              </button>
+              <div className="min-w-0">
+                <div className="truncate text-[13px] font-bold text-charcoal">{ROOM_LABELS[pane.roomType]}</div>
+                <div className="truncate text-xs text-muted-2">
+                  {roomCounts[pane.roomType] ?? 0} traveler{(roomCounts[pane.roomType] ?? 0) === 1 ? "" : "s"} · {activeSailing.shipName}
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPane({ type: "group" })}
+              className="shrink-0 rounded-[9px] border-[1.5px] border-border px-3 py-1.5 font-sans text-xs text-muted transition-colors hover:border-teal hover:text-teal"
+            >
+              ← Group chat
+            </button>
+          </div>
+
+          <div className="relative flex-1 overflow-hidden">
+            <div ref={roomContainerRef} className="flex h-full flex-col gap-2.5 overflow-y-auto px-4.5 py-3.5">
+              <div className="mx-auto max-w-[300px] rounded-full border border-[#dcecec] bg-[#eff6f6] px-3.25 py-1.5 text-center text-[11px] text-[#4c6d72]">
+                This room opened when {ROOM_UNLOCK} {ROOM_NOUN_PLURAL[pane.roomType]} had joined. Only{" "}
+                {ROOM_NOUN_PLURAL[pane.roomType]} on this sailing can see it.
+              </div>
+              {roomRuns.map((run) => (
+                <div key={run.key} className="flex flex-col gap-2.5">
+                  {run.day ? <DayDivider label={run.day} /> : null}
+                  <MessageRunView
+                    run={run}
+                    memberInfo={memberInfo}
+                    isDeletable={(m) => roomMessages.some((rm) => rm.id === m.id)}
+                    isAdmin={isAdmin}
+                    blockedIds={blockedIds}
+                    onDelete={deleteGroupMessage}
+                    onSenderClick={openProfilePeek}
+                    onReport={reportGroupMessage}
+                    onToggleBlock={toggleBlock}
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              ref={roomPillRef}
+              type="button"
+              onClick={() => roomScroll.scrollToBottom("smooth")}
+              style={{ display: "none" }}
+              className="absolute bottom-3 left-1/2 items-center gap-1.5 rounded-full bg-teal px-4 py-2 font-sans text-xs font-semibold text-white shadow-[0_4px_14px_rgba(14,140,153,.35)] transition-transform -translate-x-1/2 hover:scale-105"
+            >
+              ↓ New message
+            </button>
+          </div>
+
+          <div className="shrink-0 border-t border-border bg-white px-5.5 py-3.5">
+            <div className="flex items-end gap-2.5">
+              <textarea
+                value={roomDraft}
+                onChange={(e) => setRoomDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendGroupRoom();
+                  }
+                }}
+                placeholder={`Message ${ROOM_NOUN_PLURAL[pane.roomType]}...`}
+                rows={1}
+                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
+              />
+              <button
+                type="button"
+                onClick={sendGroupRoom}
+                className="shrink-0 rounded-[11px] bg-teal px-4.5 py-2.5 font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+              >
+                Send
+              </button>
+            </div>
+            <div className="mt-1.5 text-center text-[11px] text-muted-2">
+              Only you and this room&apos;s other members can see these messages
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {/* DM PANE */}
       {pane.type === "dm" ? (
         <div className={`flex-1 flex-col overflow-hidden md:flex ${mobileShowingThread ? "flex" : "hidden"}`}>
@@ -2083,6 +2544,63 @@ function ChatAppInner() {
       ) : null}
 
       <ReportModal target={reportTarget} onClose={() => setReportTarget(null)} />
+
+      <Modal open={lockedSheetType !== null} onClose={() => setLockedSheetType(null)}>
+        {lockedSheetType && activeSailing ? (
+          <div>
+            {lockedSheetType === "lgbtq" ? (
+              <div
+                className="mb-3.5 h-16 w-16 rounded-[20px]"
+                style={{ background: "linear-gradient(180deg,#e8503a 0 16.66%,#f0913f 16.66% 33.33%,#f5d34a 33.33% 50%,#4ea85c 50% 66.66%,#3f76c4 66.66% 83.33%,#8a4fa8 83.33% 100%)" }}
+              />
+            ) : (
+              <div
+                className="mb-3.5 flex h-16 w-16 items-center justify-center rounded-[20px] text-[30px]"
+                style={{ background: ROOM_TINT[lockedSheetType] }}
+              >
+                {PARTY_ICON[lockedSheetType]}
+              </div>
+            )}
+            <div className="font-display text-[21px] font-extrabold text-charcoal">
+              {ROOM_LABELS[lockedSheetType]} room
+            </div>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+              A private room for {ROOM_NOUN_PLURAL[lockedSheetType]} sailing on {activeSailing.shipName}. It opens
+              on its own once {ROOM_UNLOCK} of you are aboard.
+            </p>
+            <div className="mt-4 rounded-2xl border border-[#e0eef0] bg-[#f6fbfb] p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-[13.5px] font-bold text-charcoal">
+                  {roomCounts[lockedSheetType] ?? 0} of {ROOM_UNLOCK} aboard
+                </span>
+                <span className="text-[12.5px] font-semibold text-[#0a6e79]">
+                  {Math.max(0, ROOM_UNLOCK - (roomCounts[lockedSheetType] ?? 0))} more to open
+                </span>
+              </div>
+              <div className="mt-2.5 flex gap-[5px]">
+                {Array.from({ length: ROOM_UNLOCK }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-1.5 flex-1 rounded-full"
+                    style={{ background: i < (roomCounts[lockedSheetType] ?? 0) ? "#0E8C99" : "#dfebec" }}
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="mt-4 text-xs leading-relaxed text-muted-2">
+              Travelers join this sailing every week. We&apos;ll let you know the moment the room opens - nobody
+              needs to do anything to make it happen.
+            </p>
+            <Link
+              href={`/sailing/${activeSailing.id}/board`}
+              onClick={() => setLockedSheetType(null)}
+              className="mt-4 block w-full rounded-xl border-[1.5px] border-[#c5e2e4] bg-[#f3fbfb] py-3 text-center font-sans text-sm font-semibold text-[#0a6e79] transition-colors hover:border-teal"
+            >
+              Meet {ROOM_NOUN_PLURAL[lockedSheetType]} on the board
+            </Link>
+          </div>
+        ) : null}
+      </Modal>
 
       {profilePeek ? (
         <ProfilePeekCard
