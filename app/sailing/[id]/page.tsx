@@ -5,7 +5,7 @@ import NavBar from "@/components/NavBar";
 import { getSailingById, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { scarcityState } from "@/lib/pioneer";
-import { createServerClient } from "@/lib/supabase/server";
+import { getCachedSailingPassengers } from "@/lib/sailingPassengers";
 import FoundingBadgeTiles from "@/components/board/FoundingBadgeTiles";
 
 function describeSailing(sailing: NonNullable<Awaited<ReturnType<typeof getSailingById>>>): string {
@@ -34,9 +34,8 @@ export default async function SailingResultPage({
   const sailing = await getSailingById(id);
   if (!sailing) notFound();
 
-  const supabase = createServerClient();
-  const { data: passengerRows } = await supabase.rpc("get_sailing_passengers", { p_sailing_id: sailing.id });
-  const n = (passengerRows as { user_id: string }[] | null)?.length ?? 0;
+  const passengerRows = await getCachedSailingPassengers(sailing.id);
+  const n = passengerRows.length;
   const dense = n >= MIN_BROWSE_THRESHOLD;
   const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
 

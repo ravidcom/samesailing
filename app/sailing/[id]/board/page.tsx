@@ -6,18 +6,13 @@ import PassengerBoard from "@/components/board/PassengerBoard";
 import { getSailingById } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { passengerFromProfile } from "@/lib/passengers";
-import { createServerClient } from "@/lib/supabase/server";
+import type { NameFields } from "@/lib/displayName";
+import {
+  getCachedSailingPassengers,
+  getCachedSailingPassengerNames,
+  type SailingPassengerRow,
+} from "@/lib/sailingPassengers";
 import type { OnboardingProfile } from "@/lib/auth-context";
-
-/** Return shape of the get_sailing_passengers() RPC - supabase-js can't
- * infer this on its own since the client isn't given a generated Database
- * type, so every .rpc() call below pins it explicitly via .returns(). */
-type SailingPassengerRow = {
-  user_id: string;
-  profile: OnboardingProfile | null;
-  join_rank: number | null;
-  joined_at: string;
-};
 
 /** "October 25, 2026" -> "Oct 25, 2026" - the header meta line wants the
  * abbreviated month but (unlike the chat sidebar's shortDate()) keeps the
@@ -31,10 +26,8 @@ export async function generateMetadata({ params }: PageProps<"/sailing/[id]/boar
   const { id } = await params;
   const sailing = await getSailingById(id);
   if (!sailing) return {};
-  const { data: metaPassengerRows } = await createServerClient().rpc("get_sailing_passengers", {
-    p_sailing_id: sailing.id,
-  });
-  const count = (metaPassengerRows as SailingPassengerRow[] | null)?.length ?? 0;
+  const metaPassengerRows = await getCachedSailingPassengers(sailing.id);
+  const count = metaPassengerRows.length;
   const title = `${sailing.shipName} passengers - ${sailing.date}`;
   const description =
     count && count > 0
@@ -54,10 +47,8 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
   const sailing = await getSailingById(id);
   if (!sailing) notFound();
 
-  const supabase = createServerClient();
-  const { data: rpcRows } = await supabase.rpc("get_sailing_passengers", { p_sailing_id: sailing.id });
-  const rows = rpcRows as SailingPassengerRow[] | null;
-  const joined = (rows ?? []).filter(
+  const rows = await getCachedSailingPassengers(sailing.id);
+  const joined = rows.filter(
     (r): r is SailingPassengerRow & { profile: OnboardingProfile } => !!r.profile
   );
 
@@ -66,21 +57,23 @@ export default async function BoardPage({ params }: PageProps<"/sailing/[id]/boa
   // separate join against `profiles` - via the public_profiles view, which
   // masks `name` down to null unless the account picked real-name mode
   // (the raw table itself is no longer publicly readable for other users).
-  const { data: nameRows } = await supabase
-    .from("public_profiles")
-    .select("id,name,name_mode,nickname,avatar,avatar_tint")
-    .in(
-      "id",
-      joined.map((r) => r.user_id)
-    );
-  const namesById = new Map((nameRows ?? []).map((r) => [r.id, r]));
+  const nameRows = await getCachedSailingPassengerNames(
+    sailing.id,
+    joined.map((r) => r.user_id)
+  );
+  const namesById = new Map(nameRows.map((r) => [r.id, r]));
 
   const passengers = joined.map((r) => {
     const n = namesById.get(r.user_id);
+    // public_profiles' columns are looser (string | null) than NameFields
+    // requires - same untyped-supabase-client gap as elsewhere in this
+    // file, previously invisible because nameRows was implicitly `any`.
     const nameFields = n
-      ? { nameMode: n.name_mode, nickname: n.nickname, name: n.name }
+      ? ({ nameMode: n.name_mode, nickname: n.nickname, name: n.name } as NameFields)
       : null;
-    const avatarFields = n ? { avatar: n.avatar, avatarTint: n.avatar_tint } : null;
+    const avatarFields = n
+      ? ({ avatar: n.avatar, avatarTint: n.avatar_tint } as { avatar: string; avatarTint: string })
+      : null;
     return passengerFromProfile(r.user_id, r.profile, nameFields, r.join_rank, avatarFields);
   });
 
