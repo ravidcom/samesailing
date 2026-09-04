@@ -6,9 +6,16 @@
  * either, so it's never used as the label.
  */
 
-/** First word of the ship name - "Anthem of the Seas" -> "Anthem". */
-export function shortShipName(shipName: string): string {
-  return shipName.split(" ")[0];
+/** The distinctive part of a ship name for a chip/tab label - "Anthem of
+ * the Seas" -> "Anthem". Ships whose name leads with their own line
+ * ("Celebrity Solstice", "Carnival Celebration") would otherwise show just
+ * the line ("Celebrity") with no way to tell which ship - if `line` is
+ * given and the name starts with it, that prefix is stripped first so the
+ * first word taken is the actually-distinguishing one ("Solstice"). */
+export function shortShipName(shipName: string, line?: string): string {
+  const rest =
+    line && shipName.toLowerCase().startsWith(`${line.toLowerCase()} `) ? shipName.slice(line.length + 1) : shipName;
+  return rest.split(" ")[0];
 }
 
 /** Sort key: the YYYY-MM-DD suffix every sailing id ends with (e.g.
@@ -30,7 +37,7 @@ function parseDate(dateLabel: string): { month: string; day: string; year: strin
  * different years - otherwise month + day alone is enough to tell them
  * apart, and the label shouldn't grow for no reason.
  */
-export function shortSailingLabels<T extends { id: string; shipName: string; date: string }>(
+export function shortSailingLabels<T extends { id: string; shipName: string; date: string; line?: string }>(
   sailings: T[]
 ): Map<string, string> {
   const parsed = sailings.map((s) => ({ s, d: parseDate(s.date) }));
@@ -45,11 +52,11 @@ export function shortSailingLabels<T extends { id: string; shipName: string; dat
   const labels = new Map<string, string>();
   for (const { s, d } of parsed) {
     if (!d) {
-      labels.set(s.id, `${shortShipName(s.shipName)} · ${s.date}`);
+      labels.set(s.id, `${shortShipName(s.shipName, s.line)} · ${s.date}`);
       continue;
     }
     const needsYear = (yearsByMonth.get(d.month)?.size ?? 0) > 1;
-    labels.set(s.id, `${shortShipName(s.shipName)} · ${d.month} ${d.day}${needsYear ? `, ${d.year}` : ""}`);
+    labels.set(s.id, `${shortShipName(s.shipName, s.line)} · ${d.month} ${d.day}${needsYear ? `, ${d.year}` : ""}`);
   }
   return labels;
 }
