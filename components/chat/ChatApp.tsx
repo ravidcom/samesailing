@@ -2137,31 +2137,27 @@ function ChatAppInner() {
               ) : null}
             </div>
             {travelerCount > 1 ? (
-              <div className="flex items-center gap-2">
-                <div className="flex shrink-0">
-                  {Object.entries(memberInfo)
-                    .filter(([id]) => id !== userId)
-                    .slice(0, 3)
-                    .map(([id, m], i) => (
-                      <span key={id} className={i > 0 ? "-ml-2.5 rounded-full" : "rounded-full"} style={{ boxShadow: "0 0 0 2px #0a6f7a" }}>
-                        <Avatar emoji={m.avatarEmoji} tint={m.avatarTint} size={26} />
-                      </span>
-                    ))}
-                </div>
-                <span className="truncate text-[11px] font-semibold text-white">
-                  {groupStatusLine(groupUnreadCount, lastRealGroupMsg?.atMs ? { senderName: lastRealGroupMsg.sender, atMs: lastRealGroupMsg.atMs } : null, joinsThisWeek)}
-                </span>
+              <div className="flex shrink-0">
+                {Object.entries(memberInfo)
+                  .filter(([id]) => id !== userId)
+                  .slice(0, 3)
+                  .map(([id, m], i) => (
+                    <span key={id} className={i > 0 ? "-ml-2.5 rounded-full" : "rounded-full"} style={{ boxShadow: "0 0 0 2px #0a6f7a" }}>
+                      <Avatar emoji={m.avatarEmoji} tint={m.avatarTint} size={26} />
+                    </span>
+                  ))}
               </div>
             ) : null}
             {/* HANDOFF - Group Chat Card Tappable: a white action row so the
                 card reads as tappable, not just a colored info block. Its
-                label absorbs the "Be the first to say hello" empty-state
-                copy that groupStatusLine() would otherwise also render
-                above (suppressed via the travelerCount > 1 check) - it must
-                only appear once. */}
+                label IS groupStatusLine()'s existing ladder (unread count,
+                last message, recent joins, "Be the first to say hello" as
+                the launch-default fallback) rather than a flat "Open group
+                chat" - that text used to render as its own line above this
+                row; showing it in both places would just duplicate it. */}
             <div className="mt-0.5 flex min-h-[44px] items-center justify-between gap-2.5 rounded-[11px] bg-white px-3.25 py-2.75 shadow-[0_2px_6px_rgba(8,60,66,.14)]">
-              <span className="text-[13.5px] font-extrabold text-[#0a6f7a]">
-                {travelerCount <= 1 ? "Be the first to say hello" : "Open group chat"}
+              <span className="truncate text-[13.5px] font-extrabold text-[#0a6f7a]">
+                {groupStatusLine(groupUnreadCount, lastRealGroupMsg?.atMs ? { senderName: lastRealGroupMsg.sender, atMs: lastRealGroupMsg.atMs } : null, joinsThisWeek)}
               </span>
               <span aria-hidden="true" className="shrink-0 text-[17px] font-extrabold text-teal">
                 →
