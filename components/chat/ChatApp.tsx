@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth, type OnboardingProfile, type PartyType } from "@/lib/auth-context";
+import { useAuth, type OnboardingProfile, type PartyType, type JoinedSailing } from "@/lib/auth-context";
 import { PARTY_ICON, PARTY_LABELS } from "@/lib/partyLabels";
 import { GOALS } from "@/lib/goals";
 import { createClient } from "@/lib/supabase/client";
@@ -542,6 +542,101 @@ function GroupRoomRow({
   );
 }
 
+/** Replaces a horizontally-scrolling pill row, which didn't scale once a
+ * traveler had joined more than a couple of sailings and, worse, could
+ * show an ambiguous label ("Celebrity" for a "Celebrity Solstice" sailing
+ * - the line name, not the ship) once truncated to fit a pill. Every name
+ * here is shown in full, so there's no truncation left to be ambiguous. */
+function SailingSwitcher({
+  sailings,
+  activeId,
+  unreadBySailing,
+  onSelect,
+}: {
+  sailings: JoinedSailing[];
+  activeId: string;
+  unreadBySailing: Record<string, number> | null;
+  onSelect: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const active = sailings.find((s) => s.id === activeId);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClickOutside(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onClickOutside);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  if (!active) return null;
+
+  return (
+    <div ref={rootRef} className="relative shrink-0 border-b border-border bg-[#f3fbfb] px-3.5 py-2.5">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className={`flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 font-sans text-[13px] font-bold transition-colors ${
+          open ? "border-teal bg-teal-tint text-[#0a6e79]" : "border-[#d8ebec] bg-white text-charcoal"
+        }`}
+      >
+        <span className="truncate">
+          {active.shipName} · {active.date}
+        </span>
+        <span className="shrink-0 text-xs">{open ? "▴" : "▾"}</span>
+      </button>
+      {open ? (
+        <div className="absolute inset-x-3.5 top-full z-30 mt-1.5 max-h-[280px] overflow-y-auto rounded-2xl border border-[#d8ebec] bg-white py-1.5 shadow-[0_20px_40px_-18px_rgba(14,80,88,.5)]">
+          <div className="px-3.5 pt-1 pb-1.5 text-[10.5px] font-bold tracking-[.08em] text-[#8aa6aa] uppercase">
+            Your sailings
+          </div>
+          {sailings.map((s) => {
+            const isActive = s.id === activeId;
+            const count = unreadBySailing?.[s.id] ?? 0;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => {
+                  onSelect(s.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2.5 px-3.5 py-2.25 text-left transition-colors hover:bg-input ${
+                  isActive ? "bg-teal-tint" : ""
+                }`}
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#e6f5f7] text-[15px]">
+                  ⚓
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[13px] font-semibold text-charcoal">{s.shipName}</span>
+                  <span className="block text-[11.5px] text-muted-2">{s.date}</span>
+                </span>
+                {count > 0 ? (
+                  <span className="shrink-0 rounded-full bg-coral px-1.5 py-0.5 text-[10px] font-bold text-white">
+                    {count > 9 ? "9+" : count}
+                  </span>
+                ) : null}
+                {isActive ? <span className="shrink-0 text-sm font-bold text-teal">✓</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function RoomLockIcon({ color }: { color: string }) {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true">
@@ -936,8 +1031,6 @@ function ChatAppInner() {
   const [activeSailingId, setActiveSailingIdState] = useState<string | null>(null);
   const [sailingSelectionInitialized, setSailingSelectionInitialized] = useState(false);
   const [sailingUnread, setSailingUnread] = useState<Record<string, number> | null>(null);
-  const chipRowRef = useRef<HTMLDivElement>(null);
-  const activeChipRef = useRef<HTMLButtonElement>(null);
 
   // Real viewport height, measured in JS - CSS `dvh` alone isn't reliably
   // kept in sync in some Android standalone-PWA contexts (notably when the
@@ -1607,13 +1700,6 @@ function ChatAppInner() {
     };
   }, [activeDmThreadId, supabase, userId]);
 
-  // Keeps the active sailing chip in view when it's selected (including the
-  // initial default selection), so a chip picked from off-screen doesn't
-  // leave the user wondering which one is active.
-  useEffect(() => {
-    activeChipRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [activeSailingId]);
-
   function selectSailing(id: string) {
     setActiveSailingId(id);
     setPane({ type: "group" });
@@ -2007,37 +2093,12 @@ function ChatAppInner() {
         </div>
 
         {orderedSailings.length > 1 ? (
-          <div className="relative shrink-0 border-b border-border bg-[#f3fbfb]">
-            <div
-              ref={chipRowRef}
-              className="flex gap-1.75 overflow-x-auto px-3.5 py-2.75 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {orderedSailings.map((s) => {
-                const active = s.id === activeSailing.id;
-                const count = sailingUnread?.[s.id] ?? 0;
-                return (
-                  <button
-                    key={s.id}
-                    ref={active ? activeChipRef : null}
-                    type="button"
-                    onClick={() => selectSailing(s.id)}
-                    className={`shrink-0 whitespace-nowrap rounded-full px-3.25 py-1.75 font-sans text-[12.5px] font-bold transition-colors ${
-                      active ? "bg-teal text-white" : "border border-[#d8ebec] bg-white text-[#4c6d72] font-semibold"
-                    }`}
-                  >
-                    {shortLabels.get(s.id) ?? s.shipName}
-                    {count > 0 ? (
-                      <span className={active ? "ml-1 opacity-70" : "ml-1 text-coral"}>{count > 9 ? "9+" : count}</span>
-                    ) : null}
-                  </button>
-                );
-              })}
-            </div>
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-l from-[#f3fbfb] to-transparent"
-            />
-          </div>
+          <SailingSwitcher
+            sailings={orderedSailings}
+            activeId={activeSailing.id}
+            unreadBySailing={sailingUnread}
+            onSelect={selectSailing}
+          />
         ) : null}
 
         <div className="flex-1 overflow-y-auto">
