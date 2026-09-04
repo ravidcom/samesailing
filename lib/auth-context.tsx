@@ -159,7 +159,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase
         .from("joined_sailings")
         .select("sailing_id,line,ship_name,sail_date,itinerary,port,profile,join_rank")
-        .eq("user_id", userId),
+        .eq("user_id", userId)
+        .order("joined_at", { ascending: false }),
       supabase.from("user_moderation").select("is_admin,banned").eq("user_id", userId).maybeSingle(),
     ]);
     // Banned accounts get signed out on the spot rather than populated with
