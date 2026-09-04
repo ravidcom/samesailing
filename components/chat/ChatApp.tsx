@@ -849,7 +849,12 @@ function ProfilePeekCard({
               <span className="truncate text-[15px] font-bold text-charcoal">{peek.senderName}</span>
               {showPride ? <PrideStripe className="h-[11px] w-[17px]" outlined /> : null}
             </div>
-            <div className="mt-0.5 truncate text-xs text-muted-2">{bits.length ? bits.join(" · ") : "On this sailing"}</div>
+            {/* No truncate: country is the last (and most likely to be cut)
+                item in this joined string, and the card is only 272px wide -
+                reordering would just make a different field disappear
+                instead, so this wraps to a second line rather than risking
+                any of them being silently hidden behind an ellipsis. */}
+            <div className="mt-0.5 text-xs leading-snug text-muted-2">{bits.length ? bits.join(" · ") : "On this sailing"}</div>
           </div>
         </div>
         {badge ? (
