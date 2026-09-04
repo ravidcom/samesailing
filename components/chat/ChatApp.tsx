@@ -37,8 +37,14 @@ type GroupMessageRow = {
 /** An interest-group room's party type, plus "lgbtq" for the LGBTQ+ room. */
 type RoomType = PartyType | "lgbtq";
 const ROOM_TYPES: RoomType[] = ["solo", "couple", "friends", "family", "lgbtq"];
+// Deliberately not PARTY_LABELS - those name a single traveler's own party
+// type ("Couple", "Family"), correct on their own passenger card but wrong
+// as a room's name, which holds many travelers of that type at once.
 const ROOM_LABELS: Record<RoomType, string> = {
-  ...PARTY_LABELS,
+  solo: "Solo travelers",
+  couple: "Couples",
+  friends: "Friends",
+  family: "Families",
   lgbtq: "LGBTQ+ travelers",
 };
 const ROOM_NOUN: Record<RoomType, string> = {
