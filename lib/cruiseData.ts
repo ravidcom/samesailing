@@ -133,26 +133,39 @@ function rowsToRawSailings(rows: string[][]): RawSailing[] {
 }
 
 async function fetchSheetSailings(): Promise<RawSailing[]> {
-  const res = await fetch(SHEET_CSV_URL, { cache: "no-store" });
+  const res = await fetch(SHEET_CSV_URL, { cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`Sheet fetch failed with status ${res.status}`);
   const parsed = rowsToRawSailings(parseCsv(await res.text()));
   if (parsed.length === 0) throw new Error("Sheet parsed to zero valid rows");
   return parsed;
 }
 
+// Best-effort, in-memory copy of the last successful Sheet fetch on this
+// warm server instance. A transient Sheet failure used to fall straight
+// through to the bundled snapshot below, which is Royal-Caribbean-only -
+// for the full 5-minute cache window, every Celebrity/Carnival/other-line
+// sailing would 404 as if it didn't exist, even though it's a real,
+// currently-joined sailing. Preferring the last real fetch means that
+// only degrades on a cold start with no successful fetch yet.
+let lastGoodRawSailings: RawSailing[] | null = null;
+
 /**
  * Cached for 5 minutes via Next's persistent data cache (survives across
- * serverless invocations and deploys). Falls back to the bundled snapshot —
- * captured when the dataset was first wired in — if the Sheet is unreachable
- * or gets unshared, so a Sheet outage degrades gracefully instead of taking
- * search down.
+ * serverless invocations and deploys). Falls back to the last successful
+ * fetch on this instance, or - failing that - the bundled snapshot
+ * captured when the dataset was first wired in, if the Sheet is
+ * unreachable or gets unshared, so a Sheet outage degrades gracefully
+ * instead of taking search (and every non-Royal-Caribbean sailing) down.
  */
 const getRawSailings = unstable_cache(
   async (): Promise<RawSailing[]> => {
     try {
-      return await fetchSheetSailings();
+      const fresh = await fetchSheetSailings();
+      lastGoodRawSailings = fresh;
+      return fresh;
     } catch (err) {
-      console.error("Falling back to bundled sailing data — Sheet fetch failed:", err);
+      console.error("Sheet fetch failed, falling back:", err);
+      if (lastGoodRawSailings) return lastGoodRawSailings;
       // The bundled snapshot predates the Sheet's "Line" column and is
       // Royal-Caribbean-only by construction, so it has no `line` field.
       return (fallbackRaw as Omit<RawSailing, "line">[]).map((r) => ({
