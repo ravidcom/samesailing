@@ -2678,10 +2678,21 @@ function ChatAppInner() {
               Travelers join this sailing every week. We&apos;ll let you know the moment the room opens - nobody
               needs to do anything to make it happen.
             </p>
+            {/* Primary: sharing directly addresses what the progress card
+                above is actually short on ("N more to open") - DMing the
+                few qualifying travelers already aboard (the link below)
+                doesn't get the room any closer to unlocking. */}
+            <button
+              type="button"
+              onClick={shareSailing}
+              className="mt-4 w-full rounded-xl bg-teal py-3 text-center font-sans text-sm font-semibold text-white transition-colors hover:bg-teal-dark"
+            >
+              {sailingShared ? "Copied!" : "📤 Share this sailing"}
+            </button>
             <Link
               href={`/sailing/${activeSailing.id}/board`}
               onClick={() => setLockedSheetType(null)}
-              className="mt-4 block w-full rounded-xl border-[1.5px] border-[#c5e2e4] bg-[#f3fbfb] py-3 text-center font-sans text-sm font-semibold text-[#0a6e79] transition-colors hover:border-teal"
+              className="mt-2 block w-full rounded-xl border-[1.5px] border-[#c5e2e4] bg-[#f3fbfb] py-3 text-center font-sans text-sm font-semibold text-[#0a6e79] transition-colors hover:border-teal"
             >
               Meet {ROOM_NOUN_PLURAL[lockedSheetType]} on the board
             </Link>
