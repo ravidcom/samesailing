@@ -1,6 +1,5 @@
-import Image from "next/image";
-import seaBand from "@/public/images/sea-band.png";
 import SearchForm from "./SearchForm";
+import HeroScene from "./HeroScene";
 
 export default function Hero() {
   return (
@@ -18,15 +17,7 @@ export default function Hero() {
       <SearchForm />
 
       <div className="relative mx-auto mt-[26px] h-[150px] max-w-[780px] overflow-hidden rounded-[24px] sm:mt-[34px] sm:h-[220px]">
-        <Image
-          src={seaBand}
-          alt="Cruise ship at sea"
-          fill
-          sizes="(min-width: 780px) 780px, 100vw"
-          className="object-cover"
-          style={{ objectPosition: "center 42%" }}
-          priority
-        />
+        <HeroScene />
       </div>
 
       <div className="flex flex-wrap justify-center gap-6 pt-[30px] pb-1 sm:gap-10 md:gap-[52px]">
