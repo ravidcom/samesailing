@@ -116,7 +116,7 @@ export default function SailingSwitcher({
           aria-label="Your sailings"
           tabIndex={-1}
           onKeyDown={onMenuKeyDown}
-          className="absolute inset-x-3.5 top-full z-30 mt-1.5 max-h-[280px] overflow-y-auto rounded-2xl border border-[#d8ebec] bg-white py-1.5 shadow-[0_20px_40px_-18px_rgba(14,80,88,.5)] outline-none"
+          className="absolute inset-x-3.5 top-full z-30 mt-1.5 max-h-[60vh] overflow-y-auto rounded-2xl border border-[#d8ebec] bg-white py-1.5 shadow-[0_20px_40px_-18px_rgba(14,80,88,.5)] outline-none"
         >
           <div className="px-3.5 pt-1 pb-1.5 text-[10.5px] font-bold tracking-[.08em] text-[#8aa6aa] uppercase">
             Your sailings
