@@ -1042,6 +1042,27 @@ function ChatAppInner() {
     };
   }, []);
 
+  // This whole layout is sized to fit exactly within the viewport (only
+  // its own flex children scroll internally) and was never meant to
+  // page-scroll at all - but the body was still freely scrollable, so
+  // tapping to reposition the caret inside an *already-focused* textarea
+  // (keyboard already open, nothing resizes) could trigger the browser's
+  // native "scroll the focused field into view" behavior on the page
+  // itself. That shifts this fixed-height layout out of sync with the
+  // reserved-space math above, reopening the same gap without the
+  // viewport ever actually resizing. Locking body/html scroll for as long
+  // as Chat is mounted gives that behavior nothing to scroll.
+  useEffect(() => {
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, []);
+
   const setActiveSailingId = useCallback(
     (id: string) => {
       setActiveSailingIdState(id);
