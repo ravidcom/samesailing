@@ -904,6 +904,15 @@ function useAutoScroll(
   // message tall enough to matter arrives. Comparing against what the
   // height was *before* this batch landed gives the right answer.
   const prevScrollHeightRef = useRef(0);
+  // Set right before the optimistic insert for a message this user just
+  // sent - the "was near bottom" heuristic below is otherwise the only
+  // thing deciding whether to scroll or show the pill, and it isn't always
+  // right about your own just-sent message (a shifting on-screen keyboard,
+  // a tall message pushing clientHeight around mid-send). Sending a
+  // message is always an explicit "take me to the bottom", never a "pill,
+  // please" - so this skips the heuristic and forces it for that one
+  // length change.
+  const ownSendPendingRef = useRef(false);
 
   function showPill(show: boolean) {
     const el = pillRef.current;
@@ -940,7 +949,8 @@ function useAutoScroll(
 
     if (itemCount > prevLengthRef.current && el) {
       const wasNearBottom = prevScrollHeightRef.current - el.scrollTop - el.clientHeight < 80;
-      if (wasNearBottom) {
+      if (ownSendPendingRef.current || wasNearBottom) {
+        ownSendPendingRef.current = false;
         scrollToBottom();
       } else {
         showPill(true);
@@ -968,7 +978,11 @@ function useAutoScroll(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  return { scrollToBottom };
+  function markOwnMessageSent() {
+    ownSendPendingRef.current = true;
+  }
+
+  return { scrollToBottom, markOwnMessageSent };
 }
 
 export default function ChatApp() {
@@ -1937,6 +1951,7 @@ function ChatAppInner() {
     // of appending a duplicate.
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
+    groupScroll.markOwnMessageSent();
     setRealGroupMsgs((prev) => [
       ...prev,
       rowToGroupMessage(
@@ -1973,6 +1988,7 @@ function ChatAppInner() {
     const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
+    roomScroll.markOwnMessageSent();
     setRoomMessages((prev) => [
       ...prev,
       rowToGroupMessage(
@@ -2026,6 +2042,7 @@ function ChatAppInner() {
     const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
     const senderLabel = myDisplayName(activeSailing.profile?.partyType ?? null).name;
+    dmScroll.markOwnMessageSent();
     setDmMessages((prev) => [
       ...prev,
       rowToDmMessage(
