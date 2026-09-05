@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -50,7 +51,27 @@ export default function MobileTabBar() {
   const { loggedIn, mySailings, unreadCount } = useAuth();
   const pathname = usePathname();
 
-  if (!loggedIn) return null;
+  // This bar is `position:fixed; bottom:0`, which doesn't reliably track
+  // the visual viewport once the on-screen keyboard opens - it can end up
+  // pinned to the old, taller layout viewport instead, floating in the
+  // middle of the screen or leaving a gap of page background between it
+  // and the keyboard. Hiding it while the keyboard looks open (visual
+  // viewport shrunk a lot more than a plain window resize would explain)
+  // sidesteps that entirely - there's nothing useful to tap here while
+  // typing anyway. Chat's own layout drops its matching reserved space the
+  // same way, for the same reason.
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+  useEffect(() => {
+    function checkKeyboard() {
+      const height = window.visualViewport?.height ?? window.innerHeight;
+      setKeyboardOpen(window.innerHeight - height > 150);
+    }
+    checkKeyboard();
+    window.visualViewport?.addEventListener("resize", checkKeyboard);
+    return () => window.visualViewport?.removeEventListener("resize", checkKeyboard);
+  }, []);
+
+  if (!loggedIn || keyboardOpen) return null;
 
   // The prototype this is ported from assumed one global "current" sailing;
   // this app lets you join up to 5. There's no single "right" sailing to
