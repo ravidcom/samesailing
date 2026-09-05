@@ -733,6 +733,7 @@ function ProfilePeekCard({
   peek,
   info,
   isBlocked,
+  hideMessageButton,
   onClose,
   onMessage,
   onToggleBlock,
@@ -740,6 +741,10 @@ function ProfilePeekCard({
   peek: ProfilePeekState;
   info: MemberInfo | undefined;
   isBlocked: boolean;
+  /** Opened from the header of the DM thread you already have with this
+   * exact person - "Send private message" would just point at the
+   * conversation already open behind the card. */
+  hideMessageButton: boolean;
   onClose: () => void;
   onMessage: () => void;
   onToggleBlock: () => void;
@@ -809,17 +814,19 @@ function ProfilePeekCard({
           </button>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={onMessage}
-              className="mt-3.5 w-full rounded-[10px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
-            >
-              ✉ Send private message
-            </button>
+            {!hideMessageButton ? (
+              <button
+                type="button"
+                onClick={onMessage}
+                className="mt-3.5 w-full rounded-[10px] bg-teal py-2.5 text-center font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+              >
+                ✉ Send private message
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onToggleBlock}
-              className="mt-2 w-full text-center font-sans text-[11.5px] text-muted-2 hover:text-coral"
+              className={`w-full text-center font-sans text-[11.5px] text-muted-2 hover:text-coral ${hideMessageButton ? "mt-3.5" : "mt-2"}`}
             >
               🚫 Block {peek.senderName}
             </button>
@@ -2836,6 +2843,7 @@ function ChatAppInner() {
           peek={profilePeek}
           info={memberInfo[profilePeek.senderId]}
           isBlocked={blockedIds.has(profilePeek.senderId)}
+          hideMessageButton={pane.type === "dm" && activeThread?.otherUserId === profilePeek.senderId}
           onClose={closeProfilePeek}
           onMessage={messageFromPeek}
           onToggleBlock={() => toggleBlock(profilePeek.senderId, profilePeek.senderName)}
