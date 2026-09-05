@@ -2603,8 +2603,8 @@ function ChatAppInner() {
               {ROOM_LABELS[pane.roomType]} room
             </div>
             <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-              A private room for {ROOM_NOUN_PLURAL[pane.roomType]} sailing on {activeSailing.shipName}. Only{" "}
-              {ROOM_NOUN_PLURAL[pane.roomType]} on this sailing can see these messages.
+              A private room for {ROOM_NOUN_PLURAL[pane.roomType]} sailing on {activeSailing.shipName} ·{" "}
+              {activeSailing.date}. Only {ROOM_NOUN_PLURAL[pane.roomType]} on this sailing can see these messages.
             </p>
           </Modal>
         </div>
@@ -2783,8 +2783,8 @@ function ChatAppInner() {
               {ROOM_LABELS[lockedSheetType]} room
             </div>
             <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
-              A private room for {ROOM_NOUN_PLURAL[lockedSheetType]} sailing on {activeSailing.shipName}. It opens
-              on its own once {ROOM_UNLOCK} of you are aboard.
+              A private room for {ROOM_NOUN_PLURAL[lockedSheetType]} sailing on {activeSailing.shipName} ·{" "}
+              {activeSailing.date}. It opens on its own once {ROOM_UNLOCK} of you are aboard.
             </p>
             <div className="mt-4 rounded-2xl border border-[#e0eef0] bg-[#f6fbfb] p-4">
               <div className="flex items-center justify-between">
