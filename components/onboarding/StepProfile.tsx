@@ -81,7 +81,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
             <div key={i} className="mb-1.5 flex items-center gap-1.5">
               <span className="min-w-[50px] text-[11px] font-semibold text-muted-2">Child {i + 1}</span>
               <select
-                className="flex-1 rounded-lg border-[1.5px] border-border bg-white p-2 font-sans text-xs text-charcoal"
+                className="flex-1 rounded-lg border-[1.5px] border-border bg-white p-2 font-sans text-base sm:text-xs text-charcoal"
                 value={k.gender}
                 onChange={(e) => updateKid(i, { gender: e.target.value })}
                 aria-label={`Child ${i + 1} gender`}
@@ -93,7 +93,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
                 ))}
               </select>
               <select
-                className="max-w-[72px] flex-1 rounded-lg border-[1.5px] border-border bg-white p-2 font-sans text-xs text-charcoal"
+                className="max-w-[72px] flex-1 rounded-lg border-[1.5px] border-border bg-white p-2 font-sans text-base sm:text-xs text-charcoal"
                 value={k.age}
                 onChange={(e) => updateKid(i, { age: e.target.value })}
                 aria-label={`Child ${i + 1} age`}
@@ -186,7 +186,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
           </label>
           <select
             id="onboarding-group-size"
-            className="w-full rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-sm text-charcoal"
+            className="w-full rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-base sm:text-sm text-charcoal"
             value={data.groupSize}
             onChange={(e) => update({ groupSize: e.target.value })}
           >
@@ -215,7 +215,7 @@ export default function StepProfile({ data, update, error, onContinue, onBack }:
               placeholder="e.g. Foodies exploring local flavours, first Caribbean cruise..."
               value={data.bio}
               onChange={(e) => update({ bio: e.target.value })}
-              className="w-full resize-none rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-[11px] font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
+              className="w-full resize-none rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-[11px] font-sans text-[16px] sm:text-[13px] text-charcoal transition-colors focus:border-teal"
             />
             <div className="absolute bottom-2 right-2.5 text-[10px] text-muted-2">
               {data.bio.length}/80

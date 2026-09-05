@@ -2411,7 +2411,7 @@ function ChatAppInner() {
                 }}
                 placeholder="Message the group..."
                 rows={1}
-                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
+                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[16px] sm:text-[13px] text-charcoal transition-colors focus:border-teal"
               />
               <button
                 type="button"
@@ -2504,7 +2504,7 @@ function ChatAppInner() {
                 }}
                 placeholder={`Message ${ROOM_NOUN_PLURAL[pane.roomType]}...`}
                 rows={1}
-                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
+                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[16px] sm:text-[13px] text-charcoal transition-colors focus:border-teal"
               />
               <button
                 type="button"
@@ -2624,7 +2624,7 @@ function ChatAppInner() {
                     }}
                     placeholder="Send a private message..."
                     rows={1}
-                    className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[13px] text-charcoal transition-colors focus:border-teal"
+                    className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[16px] sm:text-[13px] text-charcoal transition-colors focus:border-teal"
                   />
                   <button
                     type="button"

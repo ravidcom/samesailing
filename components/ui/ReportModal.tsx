@@ -103,7 +103,7 @@ export default function ReportModal({ target, onClose }: { target: ReportTarget 
             maxLength={NOTE_MAX_LENGTH}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            className="w-full resize-none rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-sm text-charcoal transition-colors focus:border-teal"
+            className="w-full resize-none rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-base sm:text-sm text-charcoal transition-colors focus:border-teal"
           />
           <div className="mt-1 text-right text-[11px] text-muted-2">
             {note.length}/{NOTE_MAX_LENGTH}

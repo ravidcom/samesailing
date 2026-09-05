@@ -47,7 +47,7 @@ export default function CountrySelect({
       <select
         size={listSize}
         aria-label="Country"
-        className="w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input p-1.5 font-sans text-sm text-charcoal"
+        className="w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input p-1.5 font-sans text-base sm:text-sm text-charcoal"
         onChange={(e) => onChange(e.target.value)}
         value=""
       >
