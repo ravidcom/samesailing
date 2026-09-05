@@ -1623,10 +1623,12 @@ function ChatAppInner() {
         setPane({ type: "dm", id: threadId });
         enterThreadHistory();
         setMobileShowingThread(true);
-      } catch {
-        // Most likely a block between the two of you - refused at the DB
-        // level. Nothing to open, but say so instead of leaving the
-        // traveler wondering why the button did nothing.
+      } catch (err) {
+        // Not confirmed to be blocking - logging the real error rather than
+        // guessing at a cause in the message shown to the traveler, since a
+        // wrong guess here ("you were blocked") is actively harmful if it's
+        // actually a bug.
+        console.error("DM deep link failed to open a thread:", err);
         setDeepLinkError(true);
         setTimeout(() => setDeepLinkError(false), 6000);
       }
@@ -2114,7 +2116,7 @@ function ChatAppInner() {
 
         {deepLinkError ? (
           <div className="shrink-0 border-b border-border bg-[#fdeae6] px-4 py-2.5 text-center text-xs text-coral">
-            Couldn&apos;t open that conversation - they may have blocked you, or try again from their profile.
+            Couldn&apos;t open that conversation. Please try again.
           </div>
         ) : null}
 

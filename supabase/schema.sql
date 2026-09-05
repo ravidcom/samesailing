@@ -1326,3 +1326,43 @@ begin
   return new;
 end;
 $$;
+
+-- Fixes a real regression from the earlier passenger-scraping fix
+-- (search this file for "Anyone can browse sailing passengers"): "Sailing
+-- members can start a DM thread" checks BOTH user_a's and user_b's
+-- joined_sailings row via a plain EXISTS. When joined_sailings' only SELECT
+-- policies were "own row" and "admin", that EXISTS silently returned false
+-- for whichever of the two wasn't the caller (or both, unless the caller
+-- happens to be an admin) - so two ordinary travelers could never start a
+-- DM thread with each other at all, regardless of blocking. This is the
+-- exact nested-EXISTS-across-a-differently-policied-table class already
+-- fixed once for blocked_users; it was missed here because this policy's
+-- own EXISTS checks weren't re-audited when joined_sailings got locked
+-- down. private.is_sailing_member(), like private.is_blocked_pair(), is
+-- `security definer` specifically so it can see either side's row
+-- regardless of who's asking - it only ever answers yes/no to "is this one
+-- user on this one sailing", never returning a row.
+create or replace function private.is_sailing_member(p_user_id uuid, p_sailing_id text)
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from joined_sailings
+    where user_id = p_user_id and sailing_id = p_sailing_id
+  );
+$$;
+grant execute on function private.is_sailing_member(uuid, text) to authenticated;
+
+drop policy if exists "Sailing members can start a DM thread" on dm_threads;
+create policy "Sailing members can start a DM thread"
+  on dm_threads for insert
+  with check (
+    (auth.uid() = user_a or auth.uid() = user_b)
+    and not is_banned()
+    and private.is_sailing_member(user_a, dm_threads.sailing_id)
+    and private.is_sailing_member(user_b, dm_threads.sailing_id)
+    and not private.is_blocked_pair(user_a, user_b)
+  );
