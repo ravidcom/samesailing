@@ -922,6 +922,23 @@ function useAutoScroll(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [itemCount, resetKey]);
 
+  // Clicking the pill isn't the only way to reach the bottom - someone can
+  // just scroll there by hand, having already seen the new message. Without
+  // this, the pill stayed on screen (now pointing at nothing) until they
+  // tapped it anyway, purely to make it go away.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    function onScroll() {
+      if (!el) return;
+      const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+      if (nearBottom) showPill(false);
+    }
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => el.removeEventListener("scroll", onScroll);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return { scrollToBottom };
 }
 
