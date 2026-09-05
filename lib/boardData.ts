@@ -4,6 +4,7 @@ import { passengerFromProfile, type Passenger } from "@/lib/passengers";
 import type { NameFields } from "@/lib/displayName";
 import { getCachedSailingPassengers, getCachedSailingPassengerNames } from "@/lib/sailingPassengers";
 import type { OnboardingProfile } from "@/lib/auth-context";
+import { shortDateWithYear } from "@/lib/sailingLabel";
 
 export type BoardData = {
   sailingId: string;
@@ -14,14 +15,6 @@ export type BoardData = {
   countdown: string;
   passengers: Passenger[];
 };
-
-/** "October 25, 2026" -> "Oct 25, 2026" - the header meta line wants the
- * abbreviated month but (unlike the chat sidebar's shortDate()) keeps the
- * year, since there's no other date context on this compact card. */
-function shortDateWithYear(label: string): string {
-  const m = label.match(/^(\w+) (\d+), (\d+)$/);
-  return m ? `${m[1].slice(0, 3)} ${m[2]}, ${m[3]}` : label;
-}
 
 /** Everything the Passengers screen needs for one sailing - shared by the
  * initial server render (app/sailing/[id]/board/page.tsx) and the

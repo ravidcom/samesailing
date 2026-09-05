@@ -31,6 +31,14 @@ function parseDate(dateLabel: string): { month: string; day: string; year: strin
   return { month: m[1].slice(0, 3), day: m[2], year: m[3] };
 }
 
+/** "October 25, 2026" -> "Oct 25, 2026" - abbreviated month, year kept, for
+ * compact spots (card meta lines, hero eyebrow rows) that have no other
+ * date context to fall back on. */
+export function shortDateWithYear(dateLabel: string): string {
+  const d = parseDate(dateLabel);
+  return d ? `${d.month} ${d.day}, ${d.year}` : dateLabel;
+}
+
 /**
  * Short-form labels ("Anthem · Aug 31") for chips/tabs/tags. The year is
  * only added when two of the given sailings share a calendar month across
