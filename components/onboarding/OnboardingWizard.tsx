@@ -9,6 +9,7 @@ import type { SailingInfo } from "@/lib/cruiseData";
 import { primaryButton, backLink } from "@/lib/formStyles";
 import { emptyFormData, type OnboardingFormData } from "./types";
 import StepAccount from "./StepAccount";
+import StepReuseProfile from "./StepReuseProfile";
 import StepProfile from "./StepProfile";
 import StepDetails from "./StepDetails";
 import StepConsent from "./StepConsent";
@@ -48,6 +49,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [stepInitialized, setStepInitialized] = useState(false);
+  const [reuseChoiceMade, setReuseChoiceMade] = useState(false);
 
   // Adjust the starting step once auth finishes loading (render-time state sync,
   // not an effect, since it only needs to happen once auth.loading first flips).
@@ -239,6 +241,48 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         <Link href="/dashboard" className={backLink + " block text-center"}>
           Go to my dashboard
         </Link>
+      </div>
+    );
+  }
+
+  // Already registered and joining an additional sailing - most travelers'
+  // party/age/interests don't change trip to trip, so offer to carry their
+  // most recently joined sailing's profile over instead of making them
+  // retype all of step 2-3 from scratch. Only relevant right as they'd
+  // otherwise land on step 2 - once they've chosen (either way), the normal
+  // wizard takes over for the rest of the flow, back-navigation included.
+  const previousSailing = auth.loggedIn ? auth.mySailings[0] : null;
+  const previousProfile = previousSailing?.profile ?? null;
+  if (step === 2 && sailing && previousSailing && previousProfile && !reuseChoiceMade) {
+    function applyPreviousProfile() {
+      if (!previousProfile) return;
+      update({
+        partyType: previousProfile.partyType,
+        ageRanges: previousProfile.ageRanges,
+        gender: previousProfile.gender,
+        kids: previousProfile.kids,
+        groupSize: previousProfile.groupSize,
+        bio: previousProfile.bio,
+        country: previousProfile.country,
+        goals: previousProfile.goals,
+        lgbtq: previousProfile.lgbtq,
+      });
+    }
+    return (
+      <div className="mx-auto w-full max-w-[480px] overflow-hidden rounded-[22px] border-[1.5px] border-border bg-white px-[30px] py-8 shadow-[0_20px_50px_rgba(42,32,28,.08)]">
+        <StepReuseProfile
+          profile={previousProfile}
+          sourceSailingLabel={`${previousSailing.shipName} · ${previousSailing.date}`}
+          onReuse={() => {
+            applyPreviousProfile();
+            setReuseChoiceMade(true);
+            setStep(4);
+          }}
+          onEdit={() => {
+            applyPreviousProfile();
+            setReuseChoiceMade(true);
+          }}
+        />
       </div>
     );
   }
