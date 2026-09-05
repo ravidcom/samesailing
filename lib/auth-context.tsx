@@ -175,12 +175,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMySailings((sailingRows ?? []).map(rowToSailing));
     setIsAdmin(moderationRow?.is_admin ?? false);
 
-    // Powers the admin dashboard's "Active users" range stat. supabase-js
-    // query builders are lazy thenables - they don't actually send the
-    // request until awaited/`.then()`'d, so this needs a real await (not
-    // `void ...upsert(...)`, which builds the query and never fires it).
-    // Not worth surfacing an error over, so no try/catch.
+    // A general "true last seen" fact - not currently read anywhere, but
+    // harmless to keep recording. supabase-js query builders are lazy
+    // thenables - they don't actually send the request until awaited/
+    // `.then()`'d, so this needs a real await (not `void ...upsert(...)`,
+    // which builds the query and never fires it). Not worth surfacing an
+    // error over, so no try/catch.
     await supabase.from("user_activity").upsert({ user_id: userId, last_seen_at: new Date().toISOString() });
+    // Powers the admin dashboard's "Active users" range stat - a proper
+    // per-day log (one row per user per calendar day seen), unlike the
+    // single-row-per-user upsert above, so a past day's count stays
+    // accurate even after this same user is seen again later.
+    await supabase.rpc("mark_active_today");
   }
 
   useEffect(() => {

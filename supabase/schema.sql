@@ -1398,3 +1398,62 @@ begin
   return new;
 end;
 $$;
+
+-- Fixes a real bug in the admin dashboard's "Active users" range stat:
+-- user_activity stores exactly one row per user (last_seen_at gets
+-- overwritten on every visit, not logged), so admin_active_users_range()
+-- could only ever answer "whose *most recent* visit falls in this range" -
+-- never "who was active on any day within this range". Anyone active on
+-- day X and again on some later day silently drops out of day X's count
+-- once they return, because their one row now points at the later date.
+-- That's exactly why "Yesterday" could show fewer active users than new
+-- signups that same day: some of those new users already opened the app
+-- again today, overwriting yesterday's last_seen_at. A past date range's
+-- count would keep shrinking indefinitely as more of that day's users
+-- return later - not just a one-off glitch, a metric that silently decays.
+--
+-- user_activity itself is untouched (still a harmless "true last seen"
+-- fact, just no longer what this stat reads) - this adds a proper per-day
+-- log instead, one row per user per calendar day they were seen, which
+-- makes a given day's count permanent once written.
+create table if not exists user_activity_days (
+  user_id uuid not null references auth.users (id) on delete cascade,
+  activity_date date not null,
+  primary key (user_id, activity_date)
+);
+
+alter table user_activity_days enable row level security;
+-- Deliberately no policies - every access goes through the security
+-- definer functions below (mark_active_today() writes only the caller's
+-- own row; admin_active_users_range() is the only reader).
+
+create or replace function mark_active_today()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into user_activity_days (user_id, activity_date)
+  values (auth.uid(), current_date)
+  on conflict do nothing;
+end;
+$$;
+grant execute on function mark_active_today() to authenticated;
+
+create or replace function admin_active_users_range(range_start timestamptz, range_end timestamptz)
+returns bigint
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not is_admin() then
+    raise exception 'not authorized';
+  end if;
+  return (
+    select count(distinct user_id) from user_activity_days
+    where activity_date >= range_start::date and activity_date < range_end::date
+  );
+end;
+$$;
