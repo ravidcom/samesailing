@@ -4,6 +4,11 @@ import { useState } from "react";
 import { COUNTRIES, COUNTRY_OTHER } from "@/lib/countries";
 import { textInput } from "@/lib/formStyles";
 
+// Pinned to the top of the unfiltered list - the biggest English-speaking
+// cruise-departure markets, so most travelers see their own country without
+// having to search or scroll the full alphabetical list.
+const POPULAR_COUNTRIES = ["United States", "United Kingdom", "Canada"];
+
 const ALL_COUNTRIES = [...COUNTRIES, COUNTRY_OTHER];
 
 /** Shared by onboarding and My profile so a country picked in either place
@@ -52,11 +57,31 @@ export default function CountrySelect({
         value=""
       >
         <option value="" disabled hidden />
-        {filtered.map((c) => (
-          <option key={c} value={c}>
-            {c === COUNTRY_OTHER ? "🌍 Other / Not listed" : c}
-          </option>
-        ))}
+        {search ? (
+          filtered.map((c) => (
+            <option key={c} value={c}>
+              {c === COUNTRY_OTHER ? "🌍 Other / Not listed" : c}
+            </option>
+          ))
+        ) : (
+          <>
+            <optgroup label="Popular">
+              {POPULAR_COUNTRIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="All countries">
+              {COUNTRIES.filter((c) => !POPULAR_COUNTRIES.includes(c)).map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+              <option value={COUNTRY_OTHER}>🌍 Other / Not listed</option>
+            </optgroup>
+          </>
+        )}
       </select>
     </>
   );
