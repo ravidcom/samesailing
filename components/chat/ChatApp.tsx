@@ -1009,10 +1009,22 @@ function ChatAppInner() {
   // truth instead. visualViewport's resize event fires correctly for
   // exactly this case across browsers/display-modes, unlike window resize
   // alone - falls back to it only where visualViewport isn't available.
+  //
+  // Also tracks whether the keyboard looks open (visual viewport shrunk a
+  // lot more than window resize would explain) and zeroes out the height
+  // this layout reserves for MobileTabBar in that case - that bar is
+  // `position:fixed; bottom:0`, which doesn't reliably track the visual
+  // viewport when the keyboard opens (it can end up pinned to the old,
+  // taller layout viewport instead), so reserving 60px for it here while
+  // it's not actually sitting there just leaves an empty gap of page
+  // background above the keyboard. MobileTabBar hides itself the same way
+  // for the same reason.
   useEffect(() => {
     function setAppHeight() {
       const height = window.visualViewport?.height ?? window.innerHeight;
       document.documentElement.style.setProperty("--app-height", `${height}px`);
+      const keyboardOpen = window.innerHeight - height > 150;
+      document.documentElement.style.setProperty("--tabbar-offset", keyboardOpen ? "0px" : "60px");
     }
     setAppHeight();
     window.visualViewport?.addEventListener("resize", setAppHeight);
@@ -2139,7 +2151,7 @@ function ChatAppInner() {
   }
 
   return (
-    <main className="flex h-[calc(var(--app-height,100dvh)-60px)] overflow-hidden pt-[62px] md:h-[var(--app-height,100dvh)]">
+    <main className="flex h-[calc(var(--app-height,100dvh)-var(--tabbar-offset,60px))] overflow-hidden pt-[62px] md:h-[var(--app-height,100dvh)]">
       {/* SIDEBAR */}
       <div
         className={`w-full shrink-0 flex-col border-r border-border bg-white md:flex md:w-[312px] ${
