@@ -11,7 +11,7 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useTravelerCount } from "@/lib/useTravelerCount";
 import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
-import { GROUP_SEED_MESSAGES, formatTimeLabel, chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
+import { GROUP_SEED_MESSAGES, chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
 import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
 import { badgeForRank } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
@@ -182,7 +182,7 @@ function rowToGroupMessage(row: GroupMessageRow, myUserId: string | null): ChatM
     mine: row.user_id === myUserId,
     sender: row.user_id === myUserId ? "You" : row.sender_label,
     body: row.body,
-    ts: formatTimeLabel(new Date(row.created_at)),
+    ts: chatListTimeLabel(new Date(row.created_at).getTime()),
     deleted: row.deleted,
     atMs: new Date(row.created_at).getTime(),
     userId: row.user_id,
@@ -195,7 +195,7 @@ function rowToDmMessage(row: DmMessageRow, myUserId: string | null): ChatMessage
     mine: row.sender_id === myUserId,
     sender: row.sender_id === myUserId ? "You" : row.sender_label,
     body: row.body,
-    ts: formatTimeLabel(new Date(row.created_at)),
+    ts: chatListTimeLabel(new Date(row.created_at).getTime()),
     deleted: row.deleted,
     atMs: new Date(row.created_at).getTime(),
     userId: row.sender_id,
