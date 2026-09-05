@@ -2442,11 +2442,7 @@ function ChatAppInner() {
                   })() : null}
                 </div>
                 <div className="text-xs text-muted-2">
-                  {otherTyping ? (
-                    <span className="font-semibold text-teal">typing…</span>
-                  ) : (
-                    (shortLabels.get(activeSailing.id) ?? activeSailing.shipName)
-                  )}
+                  {shortLabels.get(activeSailing.id) ?? activeSailing.shipName}
                 </div>
               </div>
             </div>
@@ -2511,6 +2507,11 @@ function ChatAppInner() {
               </div>
             ) : (
               <>
+                {otherTyping ? (
+                  <div className="mb-1.5 text-[11.5px] font-semibold text-teal">
+                    {activeThread?.label ?? "They"} is typing…
+                  </div>
+                ) : null}
                 <div className="flex items-end gap-2.5">
                   <textarea
                     value={dmDraft}
