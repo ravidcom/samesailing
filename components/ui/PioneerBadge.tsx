@@ -15,7 +15,7 @@ export function CornerRibbon({
     <button
       type="button"
       onClick={onToggle}
-      title="What is this?"
+      title={badge.tip}
       className="absolute top-0 right-0 flex items-center gap-1 rounded-bl-[11px] px-[11px] py-1 text-[10.5px] font-extrabold tracking-[.07em] whitespace-nowrap uppercase"
       style={{ background: badge.ribbonBg, color: badge.ribbonFg }}
     >
