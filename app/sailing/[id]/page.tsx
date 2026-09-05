@@ -6,7 +6,8 @@ import { getSailingById, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { scarcityState } from "@/lib/pioneer";
 import { getCachedSailingPassengers } from "@/lib/sailingPassengers";
-import FoundingBadgeTiles from "@/components/board/FoundingBadgeTiles";
+import { shortDateWithYear } from "@/lib/sailingLabel";
+import FoundingBadgeChips from "@/components/board/FoundingBadgeChips";
 
 function describeSailing(sailing: NonNullable<Awaited<ReturnType<typeof getSailingById>>>): string {
   return `${sailing.shipName} sails a ${sailing.itinerary} itinerary, departing ${sailing.date} from ${sailing.port}. Meet fellow travelers on this exact sailing before you set sail.`;
@@ -37,7 +38,10 @@ export default async function SailingResultPage({
   const passengerRows = await getCachedSailingPassengers(sailing.id);
   const n = passengerRows.length;
   const dense = n >= MIN_BROWSE_THRESHOLD;
-  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights);
+  // Dropping the "to go" suffix (kept on /board's countdown pill) protects
+  // this hero from wrapping on narrow phones - the ⏳ prefix already reads
+  // as a countdown without it.
+  const countdown = countdownLabelForDays(daysUntilDate(sailing.isoDate), sailing.nights).replace(/ to go$/, "");
 
   // Lets Google show a path (Home > Ship - Date) instead of the raw URL
   // for this page's search result.
@@ -76,6 +80,13 @@ export default async function SailingResultPage({
                 <div className="mt-1.5 text-[15px] font-semibold text-[#bff0f2]">
                   {sailing.itinerary}
                 </div>
+                {!dense ? (
+                  <div className="mt-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-white/88">
+                    <span>{shortDateWithYear(sailing.date)}</span>
+                    <span className="opacity-50">·</span>
+                    <span>{sailing.port}</span>
+                  </div>
+                ) : null}
               </div>
               {countdown ? (
                 <div className="shrink-0 whitespace-nowrap rounded-full border border-white/30 bg-white/20 px-3 py-1.5 text-xs font-bold">
@@ -86,80 +97,75 @@ export default async function SailingResultPage({
           </div>
 
           <div className="px-8 py-7">
-            {/* Real sentence-form description, not just the facts grid below -
-                gives crawlers and readers a unique summary of this exact
-                sailing, matching the page's own meta description. */}
-            <p className="mb-5 text-sm leading-relaxed text-muted">{describeSailing(sailing)}</p>
-
-            <div className="mb-5 flex gap-6 text-sm">
-              <div>
-                <div className="mb-1 text-[11px] font-bold tracking-[.08em] text-muted-2 uppercase">
-                  Departs
-                </div>
-                <div className="font-semibold text-charcoal">{sailing.date}</div>
-              </div>
-              <div>
-                <div className="mb-1 text-[11px] font-bold tracking-[.08em] text-muted-2 uppercase">
-                  From
-                </div>
-                <div className="font-semibold text-charcoal">{sailing.port}</div>
-              </div>
-            </div>
-
-            {!dense ? (
-              <div className="mb-4 inline-block rounded-full border border-[#b9e5e8] bg-teal-tint px-4 py-1.5 text-xs font-semibold text-teal">
-                Founding member opportunity
-              </div>
-            ) : null}
-
-            <p className="mb-6 text-sm leading-relaxed text-muted">
-              {dense
-                ? `Connect with ${n} travelers already on this exact sailing - before you even board. Group chat, private messages, and excursion planning all in one place.`
-                : "Be among the first aboard. The first three travelers to join this sailing earn a medal frame on their passenger card, and the next seven come aboard as Early crew."}
-            </p>
-
-            {!dense ? (
+            {dense ? (
               <>
-                <div className="mb-4">
-                  <FoundingBadgeTiles />
+                {/* Real sentence-form description, not just the facts grid
+                    below - gives crawlers and readers a unique summary of
+                    this exact sailing, matching the page's own meta
+                    description. */}
+                <p className="mb-5 text-sm leading-relaxed text-muted">{describeSailing(sailing)}</p>
+
+                <div className="mb-5 flex gap-6 text-sm">
+                  <div>
+                    <div className="mb-1 text-[11px] font-bold tracking-[.08em] text-muted-2 uppercase">
+                      Departs
+                    </div>
+                    <div className="font-semibold text-charcoal">{sailing.date}</div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-[11px] font-bold tracking-[.08em] text-muted-2 uppercase">
+                      From
+                    </div>
+                    <div className="font-semibold text-charcoal">{sailing.port}</div>
+                  </div>
                 </div>
-                <p className="mb-4 text-[13px] leading-relaxed text-muted-2">
-                  Badged travelers sit at the top of the passenger board, and we email you as each new shipmate joins.
+
+                <p className="mb-6 text-sm leading-relaxed text-muted">
+                  Connect with {n} travelers already on this exact sailing - before you even board. Group chat,
+                  private messages, and excursion planning all in one place.
                 </p>
+
+                <Link
+                  href={`/join/${sailing.id}`}
+                  className="block w-full rounded-xl bg-teal py-3.5 text-center font-sans text-[15px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                >
+                  ⚓ Join this sailing - it&apos;s free
+                </Link>
+                <Link
+                  href={`/sailing/${sailing.id}/board`}
+                  className="mt-2.5 block w-full rounded-xl border-[1.5px] border-border py-3 text-center font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+                >
+                  👀 Browse travelers first
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={`/join/${sailing.id}`}
+                  className="block w-full rounded-xl bg-teal py-3.5 text-center font-sans text-[15px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                >
+                  ⚓ Join as a founding member - it&apos;s free
+                </Link>
                 {(() => {
                   const scarcity = scarcityState(n);
                   return (
-                    <div
-                      style={{ background: scarcity.bg, border: `1px solid ${scarcity.border}` }}
-                      className="mb-6 flex items-center gap-2 rounded-xl px-3.5 py-3"
-                    >
-                      <span className="shrink-0 text-[15px]">🔥</span>
-                      <span style={{ color: scarcity.color }} className="text-[13px] leading-snug font-semibold">
-                        {scarcity.text}
-                      </span>
+                    <div className="mt-2.5 flex items-center justify-center gap-1.75 text-[12.5px] font-bold" style={{ color: scarcity.color }}>
+                      <span>🔥</span>
+                      <span>{scarcity.text}</span>
                     </div>
                   );
                 })()}
+
+                <div className="my-[18px] h-px bg-[#eef6f7]" />
+
+                <div className="mb-2 font-display text-base font-bold text-charcoal">Founding member perks</div>
+                <p className="mb-3.5 text-[13.5px] leading-relaxed text-muted">
+                  The first three aboard earn a medal frame on their passenger card; the next seven come aboard as
+                  Early crew. Badged travelers sit at the top of the passenger board.
+                </p>
+                <FoundingBadgeChips />
               </>
-            ) : null}
-
-            <Link
-              href={`/join/${sailing.id}`}
-              className="block w-full rounded-xl bg-teal py-3.5 text-center font-sans text-[15px] font-semibold text-white transition-colors hover:bg-teal-dark"
-            >
-              {dense
-                ? "⚓ Join this sailing - it's free"
-                : "⚓ Join as a founding member - it's free"}
-            </Link>
-
-            {dense ? (
-              <Link
-                href={`/sailing/${sailing.id}/board`}
-                className="mt-2.5 block w-full rounded-xl border-[1.5px] border-border py-3 text-center font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
-              >
-                👀 Browse travelers first
-              </Link>
-            ) : null}
+            )}
 
             <Link
               href="/"

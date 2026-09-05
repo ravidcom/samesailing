@@ -96,49 +96,44 @@ export type FoundingTile = {
   gradient: string;
   ringColor: string;
   labelColor: string;
-  tip: string;
 };
 
 export const FOUNDING_TILES: FoundingTile[] = [
   {
     tier: "gold",
     emoji: "🏆",
-    label: "1st aboard",
+    label: "1st",
     caption: "GOLD",
     gradient: "linear-gradient(165deg,#fdf6e2,#f7e6b6)",
     ringColor: "#d9a326",
     labelColor: "#6b4c0a",
-    tip: "Gold frame: the very first traveler to join this sailing.",
   },
   {
     tier: "silver",
     emoji: "🥈",
-    label: "2nd aboard",
+    label: "2nd",
     caption: "SILVER",
     gradient: "linear-gradient(165deg,#f6f8fa,#e2e8ed)",
     ringColor: "#a8b2ba",
     labelColor: "#3f4d58",
-    tip: "Silver frame: the second traveler aboard, back when the board was almost empty.",
   },
   {
     tier: "bronze",
     emoji: "🥉",
-    label: "3rd aboard",
+    label: "3rd",
     caption: "BRONZE",
     gradient: "linear-gradient(165deg,#fdf3ea,#f2ddc9)",
     ringColor: "#c07f45",
     labelColor: "#6c3e19",
-    tip: "Bronze frame: the third traveler aboard, before this sailing filled up.",
   },
   {
     tier: "crew",
     emoji: "⚓",
-    label: "Early crew",
-    caption: "4TH-10TH",
+    label: "4–10",
+    caption: "CREW",
     gradient: "linear-gradient(165deg,#f2f8f8,#e0edee)",
     ringColor: "#c5e2e4",
     labelColor: "#3a565b",
-    tip: "Early crew: travelers 4 to 10 to join. No medal, but still first aboard.",
   },
 ];
 
@@ -150,36 +145,31 @@ export function crewSpotsLeft(joined: number): number {
   return Math.max(0, BADGE_SLOTS - Math.max(joined, MEDAL_SLOTS));
 }
 
-export type ScarcityState = { text: string; bg: string; border: string; color: string };
+export type ScarcityState = { text: string; color: string };
 
 /**
  * Derived entirely from the sailing's already-tracked member count - no
  * second counter. Recompute on every render so it reflects the sailing
- * being viewed and drops as others join.
+ * being viewed and drops as others join. Copy/colour locked to HANDOFF -
+ * Empty Sailing Shorter Screen.md's state table.
  */
 export function scarcityState(joined: number): ScarcityState {
   const medalsLeft = medalSpotsLeft(joined);
   if (medalsLeft > 0) {
     return {
-      text: `Only ${medalsLeft} medal ${medalsLeft === 1 ? "spot" : "spots"} remaining for this sailing (out of ${MEDAL_SLOTS})`,
-      bg: "#fff3eb",
-      border: "#ffd9c9",
-      color: medalsLeft <= 2 ? "#c2432b" : "#a8613a",
+      text: `Only ${medalsLeft} medal ${medalsLeft === 1 ? "spot" : "spots"} left`,
+      color: "#c2432b",
     };
   }
   const crewLeft = crewSpotsLeft(joined);
   if (crewLeft > 0) {
     return {
-      text: `Medals are claimed - ${crewLeft} Early crew ${crewLeft === 1 ? "spot" : "spots"} left (out of ${BADGE_SLOTS - MEDAL_SLOTS})`,
-      bg: "#f4f9f9",
-      border: "#d5e6e7",
-      color: "#4c6d72",
+      text: `${crewLeft} Early crew ${crewLeft === 1 ? "spot" : "spots"} left`,
+      color: "#c2432b",
     };
   }
   return {
-    text: `All ${BADGE_SLOTS} badge spots on this sailing are claimed`,
-    bg: "#eef5f5",
-    border: "#d5e6e7",
+    text: "All founding spots claimed",
     color: "#4c6d72",
   };
 }
