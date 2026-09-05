@@ -132,12 +132,35 @@ function rowsToRawSailings(rows: string[][]): RawSailing[] {
   return out;
 }
 
-async function fetchSheetSailings(): Promise<RawSailing[]> {
+async function fetchSheetSailingsOnce(): Promise<RawSailing[]> {
   const res = await fetch(SHEET_CSV_URL, { cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok) throw new Error(`Sheet fetch failed with status ${res.status}`);
   const parsed = rowsToRawSailings(parseCsv(await res.text()));
   if (parsed.length === 0) throw new Error("Sheet parsed to zero valid rows");
   return parsed;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// A single transient blip (a slow response, one bad status code) used to
+// fall straight through to the Royal-Caribbean-only fallback below for a
+// full 5-minute cache window - retrying first means only a genuinely
+// sustained outage (not a one-off hiccup) ever reaches that fallback path
+// at all.
+const RETRY_DELAYS_MS = [500, 1500];
+async function fetchSheetSailings(): Promise<RawSailing[]> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) await sleep(RETRY_DELAYS_MS[attempt - 1]);
+    try {
+      return await fetchSheetSailingsOnce();
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+  throw lastErr;
 }
 
 // Best-effort, in-memory copy of the last successful Sheet fetch on this
