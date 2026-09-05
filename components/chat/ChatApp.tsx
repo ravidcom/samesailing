@@ -1102,6 +1102,12 @@ function ChatAppInner() {
   const [dmMessages, setDmMessages] = useState<ChatMessage[]>([]);
   const [dmDraft, setDmDraft] = useState("");
   const [dmSendError, setDmSendError] = useState(false);
+  // Set when the "Send private message" deep link from a passenger card
+  // fails to open a thread (most likely a block between the two of you,
+  // refused at the DB level) - previously swallowed silently, which left
+  // the traveler on the plain chat list with zero explanation for why
+  // nothing happened.
+  const [deepLinkError, setDeepLinkError] = useState(false);
   // "X is typing…" (§ DM presence): ephemeral realtime broadcast, not
   // persisted anywhere - there's nothing here worth keeping once the
   // moment passes. dmChannelRef lets updateDmDraft() send on the same
@@ -1619,7 +1625,10 @@ function ChatAppInner() {
         setMobileShowingThread(true);
       } catch {
         // Most likely a block between the two of you - refused at the DB
-        // level. Nothing to open; just clean up the URL below.
+        // level. Nothing to open, but say so instead of leaving the
+        // traveler wondering why the button did nothing.
+        setDeepLinkError(true);
+        setTimeout(() => setDeepLinkError(false), 6000);
       }
       router.replace("/chat");
     })();
@@ -2102,6 +2111,12 @@ function ChatAppInner() {
           <div className="font-display text-[20px] font-bold text-charcoal">Messages</div>
           <InstallAppButton compact />
         </div>
+
+        {deepLinkError ? (
+          <div className="shrink-0 border-b border-border bg-[#fdeae6] px-4 py-2.5 text-center text-xs text-coral">
+            Couldn&apos;t open that conversation - they may have blocked you, or try again from their profile.
+          </div>
+        ) : null}
 
         {orderedSailings.length > 1 ? (
           <SailingSwitcher
