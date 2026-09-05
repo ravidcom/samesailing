@@ -1,8 +1,13 @@
 export const fieldLabel =
   "mb-1.5 block text-[11px] font-semibold tracking-[.06em] text-muted-2 uppercase";
 
+// text-base (16px) on phones - iOS Safari auto-zooms the whole page in on
+// focus for any form control whose computed font-size is under 16px, and
+// the zoom doesn't reliably reset on blur, leaving the page zoomed with
+// horizontal scroll needed to see clipped content. sm: reverts to the
+// intended 14px look everywhere wider than a phone.
 export const textInput =
-  "w-full rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-sm text-charcoal transition-colors focus:border-teal";
+  "w-full rounded-[11px] border-[1.5px] border-border bg-input px-[13px] py-3 font-sans text-base sm:text-sm text-charcoal transition-colors focus:border-teal";
 
 export const selectInput = textInput + " select-chevron cursor-pointer pr-[34px]";
 
