@@ -671,7 +671,7 @@ function MessageRunView({
   const canOpenSender = !run.mine && !!run.senderId && !!onSenderClick;
 
   return (
-    <div className={`flex max-w-[85%] items-start gap-2 ${run.mine ? "flex-row-reverse self-end" : "self-start"}`}>
+    <div className={`flex max-w-[90%] items-start gap-2 ${run.mine ? "flex-row-reverse self-end" : "self-start"}`}>
       {!run.mine ? (
         canOpenSender ? (
           <button
