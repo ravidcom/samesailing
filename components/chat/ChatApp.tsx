@@ -1051,6 +1051,7 @@ function ChatAppInner() {
   const [roomTimestampsByType, setRoomTimestampsByType] = useState<Partial<Record<RoomType, number[]>>>({});
   const [roomDraft, setRoomDraft] = useState("");
   const [lockedSheetType, setLockedSheetType] = useState<RoomType | null>(null);
+  const [roomInfoOpen, setRoomInfoOpen] = useState(false);
   // Pioneer badge rank, avatar, and LGBTQ+ status per member of the active
   // sailing, for the group thread's sender line (§3.3: one badge slot -
   // founding crew, else a pride bar, never both) and gutter avatar (§3.2).
@@ -2482,12 +2483,36 @@ function ChatAppInner() {
               >
                 ‹ Chats
               </button>
-              <div className="min-w-0">
-                <div className="truncate text-[13px] font-bold text-charcoal">{ROOM_LABELS[pane.roomType]}</div>
-                <div className="truncate text-xs text-muted-2">
-                  {roomCounts[pane.roomType] ?? 0} traveler{(roomCounts[pane.roomType] ?? 0) === 1 ? "" : "s"} · {activeSailing.shipName}
+              <button
+                type="button"
+                onClick={() => setRoomInfoOpen(true)}
+                aria-label={`About the ${ROOM_LABELS[pane.roomType]} room`}
+                className="flex min-w-0 items-center gap-2 text-left"
+              >
+                {pane.roomType === "lgbtq" ? (
+                  <div
+                    className="h-[30px] w-[30px] shrink-0 rounded-[10px]"
+                    style={{
+                      background:
+                        "linear-gradient(180deg,#e8503a 0 16.66%,#f0913f 16.66% 33.33%,#f5d34a 33.33% 50%,#4ea85c 50% 66.66%,#3f76c4 66.66% 83.33%,#8a4fa8 83.33% 100%)",
+                      boxShadow: "0 0 0 1px rgba(42,32,28,.12)",
+                    }}
+                  />
+                ) : (
+                  <div
+                    className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] text-[15px]"
+                    style={{ background: ROOM_TINT[pane.roomType] }}
+                  >
+                    {PARTY_ICON[pane.roomType]}
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-bold text-charcoal">{ROOM_LABELS[pane.roomType]}</div>
+                  <div className="truncate text-xs text-muted-2">
+                    {roomCounts[pane.roomType] ?? 0} traveler{(roomCounts[pane.roomType] ?? 0) === 1 ? "" : "s"} · {activeSailing.shipName}
+                  </div>
                 </div>
-              </div>
+              </button>
             </div>
             <button
               type="button"
@@ -2559,6 +2584,29 @@ function ChatAppInner() {
               Only you and this room&apos;s other members can see these messages
             </div>
           </div>
+
+          <Modal open={roomInfoOpen} onClose={() => setRoomInfoOpen(false)}>
+            {pane.roomType === "lgbtq" ? (
+              <div
+                className="mb-3.5 h-16 w-16 rounded-[20px]"
+                style={{ background: "linear-gradient(180deg,#e8503a 0 16.66%,#f0913f 16.66% 33.33%,#f5d34a 33.33% 50%,#4ea85c 50% 66.66%,#3f76c4 66.66% 83.33%,#8a4fa8 83.33% 100%)" }}
+              />
+            ) : (
+              <div
+                className="mb-3.5 flex h-16 w-16 items-center justify-center rounded-[20px] text-[30px]"
+                style={{ background: ROOM_TINT[pane.roomType] }}
+              >
+                {PARTY_ICON[pane.roomType]}
+              </div>
+            )}
+            <div className="font-display text-[21px] font-extrabold text-charcoal">
+              {ROOM_LABELS[pane.roomType]} room
+            </div>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
+              A private room for {ROOM_NOUN_PLURAL[pane.roomType]} sailing on {activeSailing.shipName}. Only{" "}
+              {ROOM_NOUN_PLURAL[pane.roomType]} on this sailing can see these messages.
+            </p>
+          </Modal>
         </div>
       ) : null}
 
@@ -2575,9 +2623,33 @@ function ChatAppInner() {
               >
                 ‹ Chats
               </button>
+              {activeThread ? (
+                <button
+                  type="button"
+                  onClick={(e) => openProfilePeek(activeThread.otherUserId, activeThread.label, e)}
+                  aria-label={`View ${activeThread.label}'s profile`}
+                  className="shrink-0"
+                >
+                  <Avatar
+                    emoji={memberInfo[activeThread.otherUserId]?.avatarEmoji}
+                    tint={memberInfo[activeThread.otherUserId]?.avatarTint}
+                    size={32}
+                  />
+                </button>
+              ) : null}
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 truncate text-[13px] font-bold text-charcoal">
-                  <span className="truncate">{activeThread?.label ?? "Conversation"}</span>
+                  {activeThread ? (
+                    <button
+                      type="button"
+                      onClick={(e) => openProfilePeek(activeThread.otherUserId, activeThread.label, e)}
+                      className="truncate hover:underline"
+                    >
+                      {activeThread.label}
+                    </button>
+                  ) : (
+                    <span className="truncate">Conversation</span>
+                  )}
                   {activeThread ? (() => {
                     const badge = badgeForRank(activeThread.joinRank);
                     return badge ? <CompactBadge badge={badge} /> : null;
