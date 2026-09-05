@@ -2297,7 +2297,7 @@ function ChatAppInner() {
                         openedAt={roomOpenedAt[roomType] ?? null}
                         unread={roomUnread}
                         isLast={i === myRoomTypes.length - 1}
-                        active={pane.type === "room" && pane.roomType === roomType}
+                        active={pane.type === "room" && pane.roomType === roomType && mobileShowingThread}
                         onClick={() => openGroupRoom(roomType)}
                       />
                     );
@@ -2333,7 +2333,11 @@ function ChatAppInner() {
                       type="button"
                       onClick={() => openDm(t.id)}
                       className={`relative flex w-full items-center gap-2.5 px-3 py-2.75 text-left transition-colors hover:bg-input ${
-                        pane.type === "dm" && pane.id === t.id ? "bg-teal-tint" : unread ? "bg-[#f8fdfd]" : ""
+                        pane.type === "dm" && pane.id === t.id && mobileShowingThread
+                          ? "bg-teal-tint"
+                          : unread
+                            ? "bg-[#f8fdfd]"
+                            : ""
                       }`}
                     >
                       {i < dmThreads.length - 1 ? (
