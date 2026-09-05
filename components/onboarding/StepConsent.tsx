@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import type { StepProps } from "./types";
 import NameModePicker from "@/components/NameModePicker";
 import { fieldLabel, primaryButton, backLink, errorText } from "@/lib/formStyles";
@@ -80,9 +81,27 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
       </label>
       <OptRow checked={data.agreedTerms} onToggle={() => update({ agreedTerms: !data.agreedTerms })}>
         I confirm I am 18 years of age or older, and I have read and agree to
-        SameSailing.com&apos;s <span className="font-semibold text-teal">Terms of Use</span>{" "}
-        and <span className="font-semibold text-teal">Privacy Policy</span>, including
-        how my data is used to match me with fellow travelers on my sailing.
+        SameSailing.com&apos;s{" "}
+        <Link
+          href="/terms"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="font-semibold text-teal underline hover:text-teal-dark"
+        >
+          Terms of Use
+        </Link>{" "}
+        and{" "}
+        <Link
+          href="/privacy"
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="font-semibold text-teal underline hover:text-teal-dark"
+        >
+          Privacy Policy
+        </Link>
+        , including how my data is used to match me with fellow travelers on my sailing.
       </OptRow>
 
       {error ? <div className={errorText}>{error}</div> : null}
