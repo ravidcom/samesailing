@@ -57,6 +57,10 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     setStepInitialized(true);
     if (auth.loggedIn && sailing) {
       setStep(2);
+      // Country is set once at signup, never re-asked - carry the account's
+      // fixed value into every later sailing's profile instead of leaving
+      // the field blank (or, worse, editable) here.
+      setData((d) => ({ ...d, country: auth.country }));
     }
   }
 
@@ -149,7 +153,10 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         kids: data.kids,
         groupSize: data.groupSize,
         bio: data.bio.trim(),
-        country: data.country,
+        // Fixed at signup and never re-asked - for an existing account this
+        // trusts the account's own country over whatever data.country
+        // happens to hold, rather than a form field that's no longer shown.
+        country: auth.loggedIn ? auth.country : data.country,
         goals: data.goals,
         lgbtq: data.lgbtq,
         avatar,
@@ -263,7 +270,9 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         kids: previousProfile.kids,
         groupSize: previousProfile.groupSize,
         bio: previousProfile.bio,
-        country: previousProfile.country,
+        // Not copied - country is the account's fixed value (already set on
+        // `data` before this screen ever renders), not something that
+        // varies per sailing to reuse from.
         goals: previousProfile.goals,
         lgbtq: previousProfile.lgbtq,
       });
@@ -331,7 +340,14 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
           <StepProfile data={data} update={update} error={error} onContinue={() => goNext(3)} onBack={() => goBack(1)} />
         ) : null}
         {step === 3 ? (
-          <StepDetails data={data} update={update} error={error} onContinue={() => goNext(4)} onBack={() => goBack(2)} />
+          <StepDetails
+            data={data}
+            update={update}
+            error={error}
+            onContinue={() => goNext(4)}
+            onBack={() => goBack(2)}
+            loggedIn={auth.loggedIn}
+          />
         ) : null}
         {step === 4 ? (
           <StepConsent

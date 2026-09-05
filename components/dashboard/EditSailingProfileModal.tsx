@@ -46,9 +46,9 @@ export default function EditSailingProfileModal({
   open: boolean;
   onClose: () => void;
 }) {
-  const { updateSailingProfile } = useAuth();
+  const { updateSailingProfile, country } = useAuth();
   const [page, setPage] = useState<1 | 2>(1);
-  const [data, setData] = useState<OnboardingFormData>(() => profileToFormData(sailing));
+  const [data, setData] = useState<OnboardingFormData>(() => ({ ...profileToFormData(sailing), country }));
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -57,7 +57,7 @@ export default function EditSailingProfileModal({
   }
 
   function reset() {
-    setData(profileToFormData(sailing));
+    setData({ ...profileToFormData(sailing), country });
     setPage(1);
     setError("");
   }
@@ -77,8 +77,8 @@ export default function EditSailingProfileModal({
   }
 
   async function save() {
-    if (!data.country || data.goals.length === 0) {
-      setError("Please select your country and at least one goal.");
+    if (data.goals.length === 0) {
+      setError("Please select at least one goal.");
       return;
     }
     setError("");
@@ -92,7 +92,8 @@ export default function EditSailingProfileModal({
       kids: data.kids,
       groupSize: data.groupSize,
       bio: data.bio.trim(),
-      country: data.country,
+      // Fixed at signup, not something this per-sailing form can change.
+      country,
       goals: data.goals,
       lgbtq: data.lgbtq,
       avatar,
@@ -125,6 +126,7 @@ export default function EditSailingProfileModal({
             onContinue={save}
             onBack={() => setPage(1)}
             continueLabel={submitting ? "Saving…" : "Save changes →"}
+            loggedIn
           />
         )}
       </div>

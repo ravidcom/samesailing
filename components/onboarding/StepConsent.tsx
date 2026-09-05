@@ -59,17 +59,21 @@ export default function StepConsent({ data, update, error, onFinish, onBack, sub
         </>
       ) : null}
 
-      <label className={fieldLabel + " mb-2 mt-[18px]"}>Email notifications</label>
-      <OptRow checked={data.notifyActivity} onToggle={() => update({ notifyActivity: !data.notifyActivity })}>
-        Keep me updated - notify me of new group activity and private messages on my sailing.
-      </OptRow>
+      {!loggedIn ? (
+        <>
+          <label className={fieldLabel + " mb-2 mt-[18px]"}>Email notifications</label>
+          <OptRow checked={data.notifyActivity} onToggle={() => update({ notifyActivity: !data.notifyActivity })}>
+            Keep me updated - notify me of new group activity and private messages on my sailing.
+          </OptRow>
 
-      <label className={fieldLabel + " mt-[18px]"}>Personalised recommendations</label>
-      <OptRow checked={data.notifyRecs} onToggle={() => update({ notifyRecs: !data.notifyRecs })}>
-        🎁 I&apos;d love to receive personalised recommendations for my sailing - great
-        deals on hotels at my departure port, top-rated shore excursions, and
-        exclusive perks for community members.
-      </OptRow>
+          <label className={fieldLabel + " mt-[18px]"}>Personalised recommendations</label>
+          <OptRow checked={data.notifyRecs} onToggle={() => update({ notifyRecs: !data.notifyRecs })}>
+            🎁 I&apos;d love to receive personalised recommendations for my sailing - great
+            deals on hotels at my departure port, top-rated shore excursions, and
+            exclusive perks for community members.
+          </OptRow>
+        </>
+      ) : null}
 
       <label className={fieldLabel + " mt-[18px]"}>
         Terms &amp; conditions <span className="font-semibold text-teal normal-case tracking-normal">Required</span>

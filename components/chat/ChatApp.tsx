@@ -298,30 +298,46 @@ async function fetchDmThreads(
     .sort((a, b) => b.sortKey - a.sortKey);
 }
 
-/** Aggregate unread count for a sailing's chat chip: unread group messages
- * (exact count) plus how many DM threads have an unread reply (a count of
- * threads, not of individual messages - the app only tracks one "last
- * read" timestamp per thread, not per-message read state). */
+/** Aggregate unread count for a sailing's chat chip: unread main-group
+ * messages (exact count), unread messages in this traveler's own interest-
+ * group rooms (exact count, using each room's own read timestamp - not the
+ * main group's, which used to double as every room's read marker too),
+ * plus how many DM threads have an unread reply (a count of threads, not of
+ * individual messages - the app only tracks one "last read" timestamp per
+ * thread, not per-message read state). */
 async function fetchSailingUnreadCount(
   supabase: SupabaseClient,
   sailingId: string,
   myId: string,
-  readMap: Record<string, number>
+  readMap: Record<string, number>,
+  myRoomTypes: RoomType[]
 ): Promise<number> {
   const groupReadAt = readMap[`group:${sailingId}`] ?? 0;
-  const [{ count: groupUnread }, dmThreads] = await Promise.all([
+  const [{ count: groupUnread }, dmThreads, roomRows] = await Promise.all([
     supabase
       .from("group_messages")
       .select("id", { count: "exact", head: true })
       .eq("sailing_id", sailingId)
+      .is("room_type", null)
       .neq("user_id", myId)
       .gt("created_at", new Date(groupReadAt).toISOString()),
     fetchDmThreads(supabase, sailingId, myId),
+    myRoomTypes.length > 0
+      ? supabase
+          .from("group_messages")
+          .select("room_type,created_at")
+          .eq("sailing_id", sailingId)
+          .in("room_type", myRoomTypes)
+          .neq("user_id", myId)
+      : Promise.resolve({ data: [] as { room_type: string | null; created_at: string }[] }),
   ]);
   const dmUnreadThreads = dmThreads.filter(
     (t) => !t.lastMessageMine && t.lastMessageAtMs > (readMap[`dm:${t.id}`] ?? 0)
   ).length;
-  return (groupUnread ?? 0) + dmUnreadThreads;
+  const roomUnread = (roomRows.data ?? []).filter(
+    (r) => new Date(r.created_at).getTime() > (readMap[`room:${sailingId}:${r.room_type}`] ?? 0)
+  ).length;
+  return (groupUnread ?? 0) + dmUnreadThreads + roomUnread;
 }
 
 /** An unsent DM draft, so a thread you started but haven't sent anything in
@@ -450,6 +466,7 @@ function GroupRoomRow({
   roomType,
   count,
   openedAt,
+  unread,
   isLast,
   active,
   onClick,
@@ -457,6 +474,7 @@ function GroupRoomRow({
   roomType: RoomType;
   count: number;
   openedAt: string | null;
+  unread: number;
   isLast: boolean;
   active: boolean;
   onClick: () => void;
@@ -509,6 +527,17 @@ function GroupRoomRow({
     sub = `${count} traveler${count === 1 ? "" : "s"} in this room`;
     subClass = "text-[#5f8288]";
     trailing = <span className="text-[#9fb9bc]">&#8250;</span>;
+  }
+
+  // An actual unread count is more useful than "New" or the plain chevron
+  // once there's something to point at - takes over the trailing slot
+  // whenever the room is open and has messages this traveler hasn't seen.
+  if (!dim && !nearlyThere && unread > 0) {
+    trailing = (
+      <span className="rounded-full bg-coral px-1.5 py-0.5 text-[10px] font-bold text-white">
+        {unread > 9 ? "9+" : unread}
+      </span>
+    );
   }
 
   return (
@@ -1001,6 +1030,11 @@ function ChatAppInner() {
   // to open in every open tab without a reload.
   const [roomOpenedAt, setRoomOpenedAt] = useState<Partial<Record<RoomType, string>>>({});
   const [roomMessages, setRoomMessages] = useState<ChatMessage[]>([]);
+  // Other members' message timestamps per room this traveler belongs to -
+  // kept for every one of their rooms (not just whichever is currently
+  // open) so the room list can show an unread badge for a room they
+  // haven't tapped into yet, the same way the DM list already can.
+  const [roomTimestampsByType, setRoomTimestampsByType] = useState<Partial<Record<RoomType, number[]>>>({});
   const [roomDraft, setRoomDraft] = useState("");
   const [lockedSheetType, setLockedSheetType] = useState<RoomType | null>(null);
   // Pioneer badge rank, avatar, and LGBTQ+ status per member of the active
@@ -1212,6 +1246,19 @@ function ChatAppInner() {
     markRead(dmReadKey);
   }
 
+  // A room's own read timestamp, separate from the main group chat's - they
+  // used to share one "group:{sailingId}" key, which meant reading the main
+  // chat silently marked every room's messages read too (and vice versa),
+  // even ones never opened.
+  const roomReadKey =
+    pane.type === "room" && activeSailing ? `room:${activeSailing.id}:${pane.roomType}` : null;
+  const roomReadSignature = roomReadKey ? `${roomReadKey}:${roomMessages.length}` : null;
+  const [syncedRoomReadSignature, setSyncedRoomReadSignature] = useState<string | null>(null);
+  if (roomReadKey && roomReadSignature !== syncedRoomReadSignature) {
+    setSyncedRoomReadSignature(roomReadSignature);
+    markRead(roomReadKey);
+  }
+
   // Restores a never-sent draft when opening (or switching to) a DM thread.
   const [draftLoadedForThread, setDraftLoadedForThread] = useState<string | null>(null);
   if (userId && activeDmThreadId && activeDmThreadId !== draftLoadedForThread) {
@@ -1389,6 +1436,57 @@ function ChatAppInner() {
     };
   }, [activeSailing, activeRoomType, supabase, userId]);
 
+  // Every room this traveler belongs to (not just whichever is open right
+  // now) - one lightweight query for message timestamps, so each room row
+  // can carry its own unread badge instead of only the currently-open one
+  // having any read/unread signal at all.
+  useEffect(() => {
+    if (!activeSailing || myRoomTypes.length === 0) return;
+    let cancelled = false;
+    const sailingId = activeSailing.id;
+    const types = myRoomTypes;
+
+    function load() {
+      supabase
+        .from("group_messages")
+        .select("user_id,created_at,room_type")
+        .eq("sailing_id", sailingId)
+        .in("room_type", types)
+        .then(({ data }) => {
+          if (cancelled || !data) return;
+          const byType: Partial<Record<RoomType, number[]>> = {};
+          for (const row of data as { user_id: string; created_at: string; room_type: RoomType }[]) {
+            if (row.user_id === userId) continue;
+            (byType[row.room_type] ??= []).push(new Date(row.created_at).getTime());
+          }
+          setRoomTimestampsByType(byType);
+        });
+    }
+    load();
+
+    const channel = supabase
+      .channel(`group_rooms_summary:${sailingId}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "group_messages", filter: `sailing_id=eq.${sailingId}` },
+        (payload) => {
+          const row = payload.new as GroupMessageRow;
+          if (row.room_type && types.includes(row.room_type as RoomType) && row.user_id !== userId) {
+            setRoomTimestampsByType((prev) => ({
+              ...prev,
+              [row.room_type as RoomType]: [...(prev[row.room_type as RoomType] ?? []), new Date(row.created_at).getTime()],
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [activeSailing, myRoomTypes, supabase, userId]);
+
   // Member lookup for the active sailing: join rank (Pioneer badge),
   // avatar, and LGBTQ+ status, so group-chat sender lines can show a
   // gutter avatar and the one-badge-slot rule (§3.2-3.3). Also counts
@@ -1499,7 +1597,12 @@ function ChatAppInner() {
 
     function refreshAll() {
       Promise.all(
-        mySailings.map(async (s) => [s.id, await fetchSailingUnreadCount(supabase, s.id, myId, readMap)] as const)
+        mySailings.map(async (s) => {
+          const types: RoomType[] = s.profile
+            ? [s.profile.partyType, ...(s.profile.lgbtq ? (["lgbtq"] as const) : [])]
+            : [];
+          return [s.id, await fetchSailingUnreadCount(supabase, s.id, myId, readMap, types)] as const;
+        })
       ).then((entries) => {
         if (!cancelled) setSailingUnread(Object.fromEntries(entries));
       });
@@ -2125,17 +2228,22 @@ function ChatAppInner() {
                     if (aOpen) return (roomOpenedAt[b] ?? "").localeCompare(roomOpenedAt[a] ?? "");
                     return (roomCounts[b] ?? 0) - (roomCounts[a] ?? 0);
                   })
-                  .map((roomType, i) => (
-                    <GroupRoomRow
-                      key={roomType}
-                      roomType={roomType}
-                      count={roomCounts[roomType] ?? 0}
-                      openedAt={roomOpenedAt[roomType] ?? null}
-                      isLast={i === myRoomTypes.length - 1}
-                      active={pane.type === "room" && pane.roomType === roomType}
-                      onClick={() => openGroupRoom(roomType)}
-                    />
-                  ))}
+                  .map((roomType, i) => {
+                    const roomReadAt = activeSailing ? (readMap[`room:${activeSailing.id}:${roomType}`] ?? 0) : 0;
+                    const roomUnread = (roomTimestampsByType[roomType] ?? []).filter((ms) => ms > roomReadAt).length;
+                    return (
+                      <GroupRoomRow
+                        key={roomType}
+                        roomType={roomType}
+                        count={roomCounts[roomType] ?? 0}
+                        openedAt={roomOpenedAt[roomType] ?? null}
+                        unread={roomUnread}
+                        isLast={i === myRoomTypes.length - 1}
+                        active={pane.type === "room" && pane.roomType === roomType}
+                        onClick={() => openGroupRoom(roomType)}
+                      />
+                    );
+                  })}
               </div>
             </>
           ) : null}
