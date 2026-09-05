@@ -1026,18 +1026,35 @@ function ChatAppInner() {
   // it's not actually sitting there just leaves an empty gap of page
   // background above the keyboard. MobileTabBar hides itself the same way
   // for the same reason.
+  //
+  // The real culprit for the gap turned out to be visualViewport.offsetTop,
+  // not just its height: focusing (or re-tapping to move the caret in) a
+  // textarea near the bottom of the screen makes the browser pan the
+  // *visual* viewport down over the page to keep the caret clear of the
+  // keyboard, without the *layout* viewport (what this component's height
+  // and position are actually computed against) moving at all. `main` is
+  // `position:fixed`, so it's anchored to the layout viewport's origin -
+  // once the visual viewport pans away from that origin by offsetTop
+  // pixels, exactly that many pixels of empty page open up between main's
+  // (correctly sized) bottom edge and the keyboard. Translating main by
+  // that same offsetTop keeps it glued to whatever the visual viewport is
+  // actually showing, panned or not.
   useEffect(() => {
     function setAppHeight() {
-      const height = window.visualViewport?.height ?? window.innerHeight;
+      const vv = window.visualViewport;
+      const height = vv?.height ?? window.innerHeight;
       document.documentElement.style.setProperty("--app-height", `${height}px`);
+      document.documentElement.style.setProperty("--vv-offset-top", `${vv?.offsetTop ?? 0}px`);
       const keyboardOpen = window.innerHeight - height > 150;
       document.documentElement.style.setProperty("--tabbar-offset", keyboardOpen ? "0px" : "60px");
     }
     setAppHeight();
     window.visualViewport?.addEventListener("resize", setAppHeight);
+    window.visualViewport?.addEventListener("scroll", setAppHeight);
     window.addEventListener("resize", setAppHeight);
     return () => {
       window.visualViewport?.removeEventListener("resize", setAppHeight);
+      window.visualViewport?.removeEventListener("scroll", setAppHeight);
       window.removeEventListener("resize", setAppHeight);
     };
   }, []);
@@ -2179,7 +2196,7 @@ function ChatAppInner() {
   }
 
   return (
-    <main className="flex h-[calc(var(--app-height,100dvh)-var(--tabbar-offset,60px))] overflow-hidden pt-[62px] md:h-[var(--app-height,100dvh)]">
+    <main className="fixed inset-x-0 top-0 flex h-[calc(var(--app-height,100dvh)-var(--tabbar-offset,60px))] translate-y-[var(--vv-offset-top,0px)] overflow-hidden pt-[62px] md:h-[var(--app-height,100dvh)]">
       {/* SIDEBAR */}
       <div
         className={`w-full shrink-0 flex-col border-r border-border bg-white md:flex md:w-[312px] ${
