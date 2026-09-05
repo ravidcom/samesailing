@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
-import fallbackRaw from "./data/royal-caribbean-sailings.json";
+import fallbackRaw from "./data/all-sailings-fallback.json";
 import { isSailingSearchable } from "./dateMath";
 
 /**
@@ -164,21 +164,21 @@ async function fetchSheetSailings(): Promise<RawSailing[]> {
 }
 
 // Best-effort, in-memory copy of the last successful Sheet fetch on this
-// warm server instance. A transient Sheet failure used to fall straight
-// through to the bundled snapshot below, which is Royal-Caribbean-only -
-// for the full 5-minute cache window, every Celebrity/Carnival/other-line
-// sailing would 404 as if it didn't exist, even though it's a real,
-// currently-joined sailing. Preferring the last real fetch means that
-// only degrades on a cold start with no successful fetch yet.
+// warm server instance, preferred over the (older, static) bundled snapshot
+// below on a transient failure - this is what's actually live a moment ago,
+// not a fixed point-in-time capture.
 let lastGoodRawSailings: RawSailing[] | null = null;
 
 /**
  * Cached for 5 minutes via Next's persistent data cache (survives across
  * serverless invocations and deploys). Falls back to the last successful
- * fetch on this instance, or - failing that - the bundled snapshot
- * captured when the dataset was first wired in, if the Sheet is
- * unreachable or gets unshared, so a Sheet outage degrades gracefully
- * instead of taking search (and every non-Royal-Caribbean sailing) down.
+ * fetch on this instance, or - failing that - the bundled snapshot (a full
+ * capture of every line in the Sheet, not just Royal Caribbean - an
+ * earlier version of this fallback only had Royal Caribbean's ships, which
+ * made every Celebrity/other-line sailing 404 during a Sheet outage as if
+ * it didn't exist, even a real, already-joined one), if the Sheet is
+ * unreachable or gets unshared, so an outage degrades gracefully instead
+ * of taking the whole site down.
  */
 const getRawSailings = unstable_cache(
   async (): Promise<RawSailing[]> => {
@@ -189,15 +189,10 @@ const getRawSailings = unstable_cache(
     } catch (err) {
       console.error("Sheet fetch failed, falling back:", err);
       if (lastGoodRawSailings) return lastGoodRawSailings;
-      // The bundled snapshot predates the Sheet's "Line" column and is
-      // Royal-Caribbean-only by construction, so it has no `line` field.
-      return (fallbackRaw as Omit<RawSailing, "line">[]).map((r) => ({
-        ...r,
-        line: "Royal Caribbean",
-      }));
+      return fallbackRaw as RawSailing[];
     }
   },
-  ["royal-caribbean-sailings"],
+  ["all-sailings"],
   { revalidate: 300 }
 );
 

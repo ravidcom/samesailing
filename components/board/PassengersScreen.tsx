@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
-import { loadActiveSailingPref, saveActiveSailingPref } from "@/lib/activeSailingPref";
+import { saveActiveSailingPref } from "@/lib/activeSailingPref";
 import { sailingDateKey } from "@/lib/sailingLabel";
 import SailingSwitcher from "@/components/SailingSwitcher";
 import SailingHeaderCard from "@/components/board/SailingHeaderCard";
@@ -14,7 +14,16 @@ import type { BoardData } from "@/lib/boardData";
  * and passenger list in place - no navigation, same as Chat's switcher.
  * `initial` is whatever app/sailing/[id]/board/page.tsx server-rendered for
  * the URL's sailing id; switching to another one re-fetches its board data
- * from /api/board/[id] (the same data, just reachable from the client). */
+ * from /api/board/[id] (the same data, just reachable from the client).
+ *
+ * Always trusts the URL's sailing for the initial render - clicking a
+ * specific sailing's "Passengers" button is an explicit choice of that
+ * sailing, and silently swapping it for whatever's active in Chat (an
+ * earlier version of this component did that, to make the dropdown's
+ * shared state feel more consistent) surprised people more than it helped:
+ * "Passengers" would sometimes land on a different sailing than the one
+ * they tapped. Only an explicit pick from this screen's own dropdown
+ * changes what's shown. */
 export default function PassengersScreen({ initial }: { initial: BoardData }) {
   const { userId, mySailings } = useAuth();
   const [boardData, setBoardData] = useState(initial);
@@ -33,38 +42,6 @@ export default function PassengersScreen({ initial }: { initial: BoardData }) {
       setSwitching(false);
     }
   }
-
-  // If a different sailing was made active elsewhere (e.g. switched in Chat
-  // right before navigating here), pick that up instead of always trusting
-  // the URL - but only when the visitor has actually joined the URL's
-  // sailing to begin with. An invite link for a sailing you haven't joined
-  // should always show that sailing, never silently swap to another one.
-  useEffect(() => {
-    if (!userId) return;
-    if (!mySailings.some((s) => s.id === initial.sailingId)) return;
-    const pref = loadActiveSailingPref(userId);
-    if (!pref || pref === initial.sailingId) return;
-    if (!mySailings.some((s) => s.id === pref)) return;
-    let cancelled = false;
-    (async () => {
-      setSwitching(true);
-      try {
-        const res = await fetch(`/api/board/${pref}`);
-        if (cancelled || !res.ok) return;
-        const data: BoardData = await res.json();
-        if (cancelled) return;
-        setBoardData(data);
-      } finally {
-        if (!cancelled) setSwitching(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // Deliberately mount-only - later switches go through selectSailing()
-    // directly, triggered by the dropdown itself.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
 
   const orderedSailings = [...mySailings].sort((a, b) =>
     sailingDateKey(a.id).localeCompare(sailingDateKey(b.id))
