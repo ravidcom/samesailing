@@ -1366,3 +1366,35 @@ create policy "Sailing members can start a DM thread"
     and private.is_sailing_member(user_b, dm_threads.sailing_id)
     and not private.is_blocked_pair(user_a, user_b)
   );
+
+-- Fixes a real bug in the interest-group rooms: notify_group_message() was
+-- written for the single-group-chat model and never updated when rooms
+-- (group_messages.room_type) were added - it notified every member of the
+-- sailing for a room message too, not just the travelers who actually
+-- belong to that room. A Solo-traveler-room message was pinging couples
+-- and families who can't even open that room, and inflating their unread
+-- badge for a conversation they'll never see. Room membership mirrors the
+-- client's own myRoomTypes logic: your own party type's room, plus the
+-- LGBTQ+ room if you're flagged for it.
+create or replace function notify_group_message()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into notifications (user_id, kind, sailing_id, sender_label, preview)
+  select js.user_id, 'group_message', new.sailing_id, new.sender_label, left(new.body, 140)
+  from joined_sailings js
+  join profiles p on p.id = js.user_id
+  where js.sailing_id = new.sailing_id
+    and js.user_id <> new.user_id
+    and p.notify_digest
+    and (
+      new.room_type is null
+      or js.profile->>'partyType' = new.room_type
+      or (new.room_type = 'lgbtq' and (js.profile->>'lgbtq')::boolean is true)
+    );
+  return new;
+end;
+$$;

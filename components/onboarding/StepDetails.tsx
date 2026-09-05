@@ -7,9 +7,17 @@ import Toggle from "@/components/ui/Toggle";
 import PrideStripe from "@/components/ui/PrideStripe";
 import CountrySelect from "@/components/ui/CountrySelect";
 
-type Props = StepProps & { onContinue: () => void; onBack: () => void; continueLabel?: string };
+type Props = StepProps & {
+  onContinue: () => void;
+  onBack: () => void;
+  continueLabel?: string;
+  /** Country is set once at signup and carried into every sailing after
+   * that (see OnboardingWizard/EditSailingProfileModal) - a returning
+   * traveler sees it as a fixed fact here, not a field to fill in again. */
+  loggedIn: boolean;
+};
 
-export default function StepDetails({ data, update, error, onContinue, onBack, continueLabel }: Props) {
+export default function StepDetails({ data, update, error, onContinue, onBack, continueLabel, loggedIn }: Props) {
   function toggleGoal(id: string) {
     const has = data.goals.includes(id);
     update({ goals: has ? data.goals.filter((g) => g !== id) : [...data.goals, id] });
@@ -18,7 +26,13 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
   return (
     <div>
       <label className={fieldLabel}>Where are you from?</label>
-      <CountrySelect value={data.country} onChange={(v) => update({ country: v })} />
+      {loggedIn ? (
+        <div className="flex items-center gap-2 rounded-lg bg-[#f2f7f7] px-3 py-2 text-sm font-semibold text-muted-2">
+          ✓ {data.country}
+        </div>
+      ) : (
+        <CountrySelect value={data.country} onChange={(v) => update({ country: v })} />
+      )}
 
       <label className={fieldLabel + " mt-[18px]"}>What are you looking for?</label>
       <div className="relative grid grid-flow-col grid-rows-4 grid-cols-2 gap-2 gap-x-2.5">
@@ -57,8 +71,9 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
             LGBTQ+ community
           </div>
           <div className="mt-0.5 text-xs leading-relaxed text-muted">
-            Show this on your card and let others filter for it. Optional, and
-            only visible to fellow passengers on this sailing.
+            Show this on your card, let others filter for it, and unlock the
+            LGBTQ+ group chat for this sailing. Optional, and only visible to
+            fellow passengers on this sailing.
           </div>
         </div>
         <Toggle on={data.lgbtq} onChange={() => update({ lgbtq: !data.lgbtq })} label="LGBTQ+ community member" />
