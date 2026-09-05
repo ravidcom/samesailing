@@ -382,27 +382,54 @@ function MessageActionsMenu({
   onToggleBlock?: (userId: string, name: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const canDelete = deletable && (msg.mine || isAdmin) && onDelete;
   const canReport = !msg.mine && msg.userId && onReport;
   const canBlock = !msg.mine && msg.userId && onToggleBlock;
   if (!canDelete && !canReport && !canBlock) return null;
+
+  // Anchored to the actual viewport (measured on open), not just the ⋯
+  // button's own tiny wrapper - a CSS left/right toggle keyed on msg.mine
+  // broke the moment bubbles got wider: the button ends up wherever the
+  // bubble's width happens to push it, which can be right at either
+  // screen edge regardless of which side the message is on, so no fixed
+  // direction is ever safe for every message length.
+  function openMenu() {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const width = 150;
+    const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8);
+    setMenuPos({ top: rect.bottom + 4, left });
+    setOpen(true);
+  }
+
   return (
     <div className="relative shrink-0">
       <button
+        ref={buttonRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => (open ? setOpen(false) : openMenu())}
         aria-label="Message options"
         className="flex h-6 w-6 items-center justify-center rounded-full text-[15px] leading-none text-[#9fb9bc] transition-colors hover:bg-[#e9f6f7] hover:text-teal"
       >
         ⋯
       </button>
-      {open ? (
+      {open && menuPos ? (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          {/* Closes on a plain tap, and also the moment a scroll/drag starts
+              (touchmove/wheel) - so opening this menu never blocks scrolling
+              the conversation underneath, it just dismisses on the first
+              movement instead. */}
           <div
-            className={`absolute z-20 mt-1 min-w-[150px] rounded-xl border border-[#e4f0f1] bg-white p-1.5 shadow-[0_12px_32px_rgba(42,32,28,.16)] ${
-              msg.mine ? "right-0" : "left-0"
-            }`}
+            className="fixed inset-0 z-10"
+            onClick={() => setOpen(false)}
+            onTouchMove={() => setOpen(false)}
+            onWheel={() => setOpen(false)}
+          />
+          <div
+            style={{ top: menuPos.top, left: menuPos.left, width: 150 }}
+            className="fixed z-20 rounded-xl border border-[#e4f0f1] bg-white p-1.5 shadow-[0_12px_32px_rgba(42,32,28,.16)]"
           >
             <button
               type="button"
