@@ -46,7 +46,7 @@ function LoginForm() {
     }
     setError("");
     setSubmitting(true);
-    const result = await auth.logIn(email, password);
+    const result = await auth.logIn(email.trim().toLowerCase(), password);
     setSubmitting(false);
     if (result.error) {
       setError(result.error);

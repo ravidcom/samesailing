@@ -194,7 +194,10 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     const avatar = partyType === "solo" ? soloIcon(data.gender) : PARTY_AVATARS[partyType] ?? "🧑";
     const result = await auth.completeSignUp({
       name: data.name || "Traveler",
-      email: data.email,
+      // Trimmed/lowercased so a stray space or different casing than an
+      // existing account doesn't read as a "new" email to Supabase - the
+      // validate() check above only ever validated the normalized form.
+      email: data.email.trim().toLowerCase(),
       password: data.password,
       avatar,
       country: data.country,
