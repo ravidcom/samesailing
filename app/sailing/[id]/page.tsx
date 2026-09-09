@@ -183,13 +183,13 @@ export default async function SailingResultPage({
 
                 <Link
                   href={`/join/${sailing.id}`}
-                  className="block w-full rounded-xl bg-teal py-3.5 text-center font-sans text-[15px] font-semibold text-white transition-colors hover:bg-teal-dark"
+                  className="block w-full rounded-xl bg-teal py-3.5 text-center font-sans text-[15px] font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-teal-dark active:scale-[.98]"
                 >
                   ⚓ Join this sailing - it&apos;s free
                 </Link>
                 <Link
                   href={`/sailing/${sailing.id}/board`}
-                  className="mt-2.5 block w-full rounded-xl border-[1.5px] border-border py-3 text-center font-sans text-sm font-semibold text-muted transition-colors hover:border-teal hover:text-teal"
+                  className="mt-2.5 block w-full rounded-xl border-[1.5px] border-border py-3 text-center font-sans text-sm font-semibold text-muted transition-[border-color,color,transform] duration-150 hover:border-teal hover:text-teal active:scale-[.98]"
                 >
                   👀 Browse travelers first
                 </Link>
