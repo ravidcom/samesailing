@@ -276,6 +276,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }: SignUpInput) {
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) return { error: error.message };
+    // Supabase's anti-enumeration behavior: signing up with an email that
+    // already has a confirmed account returns no error and a `user` object
+    // (mirroring the existing account), but with an empty `identities` array
+    // - the documented way to detect this without leaking who's registered
+    // via an error message. Without this check, that response fell through
+    // as if signup had partially succeeded instead of being treated as a
+    // duplicate account.
+    if (data.user && data.user.identities?.length === 0) {
+      return { error: "An account with this email already exists. Go back and use “Sign in” instead." };
+    }
     if (!data.user || !data.session) {
       return {
         error:
