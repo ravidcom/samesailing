@@ -7,6 +7,8 @@ import { useAuth, type NewSailingJoin, type PartyType } from "@/lib/auth-context
 import { createClient } from "@/lib/supabase/client";
 import type { SailingInfo } from "@/lib/cruiseData";
 import { primaryButton, backLink } from "@/lib/formStyles";
+import { saveActiveSailingPref } from "@/lib/activeSailingPref";
+import { getSailingPassengerCountAction } from "@/lib/sailingPassengersActions";
 import { emptyFormData, type OnboardingFormData } from "./types";
 import StepAccount from "./StepAccount";
 import StepReuseProfile from "./StepReuseProfile";
@@ -48,6 +50,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
   const [data, setData] = useState<OnboardingFormData>(emptyFormData);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [travelerCount, setTravelerCount] = useState<number | null>(null);
   const [stepInitialized, setStepInitialized] = useState(false);
   const [reuseChoiceMade, setReuseChoiceMade] = useState(false);
 
@@ -182,6 +185,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         setError(result.error);
         return;
       }
+      if (joinedSailing) setTravelerCount(await getSailingPassengerCountAction(joinedSailing.id));
       setStep(5);
       return;
     }
@@ -207,6 +211,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
       );
       return;
     }
+    if (joinedSailing) setTravelerCount(await getSailingPassengerCountAction(joinedSailing.id));
     setStep(5);
   }
 
@@ -363,8 +368,17 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         ) : null}
         {step === 5 ? (
           <StepSuccess
-            sailingLabel={sailingLabel}
+            shipName={sailing?.shipName ?? null}
+            date={sailing?.date ?? null}
             sailingId={sailing?.id ?? null}
+            travelerCount={travelerCount}
+            onOpenGroupChat={() => {
+              if (auth.userId && sailing) saveActiveSailingPref(auth.userId, sailing.id);
+              router.push("/chat");
+            }}
+            onBrowseBoard={() => {
+              if (sailing) router.push(`/sailing/${sailing.id}/board`);
+            }}
             onGoToDashboard={() => router.push("/dashboard")}
           />
         ) : null}
