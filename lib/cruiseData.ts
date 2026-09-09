@@ -206,7 +206,7 @@ function formatDateLabel(iso: string): string {
 }
 
 /** Groups raw sailings by line, then by ship — both derived from the data, not hardcoded. */
-async function buildCruiseLines(): Promise<CruiseLines> {
+async function buildCruiseLinesUncached(): Promise<CruiseLines> {
   const raw = await getRawSailings();
   const byLine = new Map<string, Map<string, { name: string; dates: SailingDate[] }>>();
 
@@ -246,8 +246,19 @@ async function buildCruiseLines(): Promise<CruiseLines> {
   return cruiseLines;
 }
 
+// buildCruiseLinesUncached() regroups every raw row (~4,400+) into the
+// nested line -> ship -> dates structure, sorting each ship's dates and the
+// ship list itself - real CPU work, not I/O. Only the raw Sheet fetch was
+// cached before this, so every single page render (including plain crawler
+// traffic) redid that full regroup from scratch; caching it alongside the
+// raw fetch, at the same 5-minute revalidate, cuts that repeated cost down
+// to once per window.
+const getCachedCruiseLines = unstable_cache(buildCruiseLinesUncached, ["cruise-lines-grouped"], {
+  revalidate: 300,
+});
+
 export async function getCruiseLines(): Promise<CruiseLines> {
-  return buildCruiseLines();
+  return getCachedCruiseLines();
 }
 
 export async function getCruiseLineNames(): Promise<string[]> {
