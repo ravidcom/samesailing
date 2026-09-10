@@ -11,7 +11,7 @@ import type { RealtimeChannel, SupabaseClient } from "@supabase/supabase-js";
 import { useTravelerCount } from "@/lib/useTravelerCount";
 import { resolveDisplayName, type NameFields } from "@/lib/displayName";
 import { findOrCreateThread } from "@/lib/dmThreads";
-import { GROUP_SEED_MESSAGES, chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
+import { chatListTimeLabel, type ChatMessage } from "@/lib/chatData";
 import { sailingDateKey, shortSailingLabels } from "@/lib/sailingLabel";
 import { badgeForRank } from "@/lib/pioneer";
 import { CompactBadge } from "@/components/ui/PioneerBadge";
@@ -1176,10 +1176,7 @@ function ChatAppInner() {
     [mySailings]
   );
   const shortLabels = useMemo(() => shortSailingLabels(orderedSailings), [orderedSailings]);
-  const groupMessages = useMemo(
-    () => [...GROUP_SEED_MESSAGES, ...realGroupMsgs],
-    [realGroupMsgs]
-  );
+  const groupMessages = realGroupMsgs;
   const realIds = useMemo(() => new Set(realGroupMsgs.map((m) => m.id)), [realGroupMsgs]);
   const groupRuns = useMemo(() => buildMessageRuns(groupMessages), [groupMessages]);
   const dmRuns = useMemo(() => buildMessageRuns(dmMessages), [dmMessages]);
