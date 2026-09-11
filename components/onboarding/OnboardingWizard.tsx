@@ -159,7 +159,10 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
         // Fixed at signup and never re-asked - for an existing account this
         // trusts the account's own country over whatever data.country
         // happens to hold, rather than a form field that's no longer shown.
-        country: auth.loggedIn ? auth.country : data.country,
+        // Falls back to data.country when the account doesn't have one yet
+        // (an OAuth signup, which creates the profile before ever asking) -
+        // StepDetails shows the real picker in exactly that case.
+        country: auth.loggedIn && auth.country ? auth.country : data.country,
         goals: data.goals,
         lgbtq: data.lgbtq,
         avatar,
@@ -179,6 +182,13 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
     const joinedSailing = buildJoinedSailing();
 
     if (auth.loggedIn) {
+      // An account with no country yet (an OAuth signup, which creates the
+      // profile before ever asking) just picked one via StepDetails' real
+      // picker - persist it now so it's fixed from here on, same as an
+      // account that got it at signup.
+      if (!auth.country && data.country) {
+        await auth.updateAccount({ country: data.country });
+      }
       const result = joinedSailing ? await auth.joinSailing(joinedSailing) : {};
       setSubmitting(false);
       if (result.error) {
