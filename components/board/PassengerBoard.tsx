@@ -278,7 +278,7 @@ export default function PassengerBoard({
                     >
                       <Avatar emoji={p.avatarEmoji} tint={p.avatarTint} size={48} />
                     </div>
-                    <div className="min-w-0 flex-1" style={badge ? { paddingRight: badge.cardPaddingRightPx } : undefined}>
+                    <div className="min-w-0 flex-1">
                       <NameSubtitle p={p} />
                     </div>
                     {isMe ? (
