@@ -55,6 +55,14 @@ function CallbackHandler() {
           name: deriveName(user.user_metadata, user.email),
           country: "",
           avatar: "😊",
+          // profiles.name_mode defaults to 'anon' at the DB level (a
+          // legacy value from before the picker dropped that option) -
+          // left unset here, a Google/Facebook signup would go fully
+          // anonymous by default with no picker ever shown to explain why
+          // (StepConsent hides it once loggedIn, which OAuth already is
+          // by the time this insert runs). Match the plain signup path's
+          // actual default instead (emptyFormData.nameMode).
+          name_mode: "real",
         });
       }
 
