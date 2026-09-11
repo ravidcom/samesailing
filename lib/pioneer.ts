@@ -20,8 +20,6 @@ export type Badge = {
   tipBg: string;
   tipBorder: string;
   tip: string;
-  /** How much padding-right the card's name column needs to keep clear of the ribbon. */
-  cardPaddingRightPx: number;
 };
 
 const GOLD: Badge = {
@@ -33,7 +31,6 @@ const GOLD: Badge = {
   tipBg: "#fdf7e6",
   tipBorder: "#efdda6",
   tip: "The very first traveler to join this sailing - they started this board.",
-  cardPaddingRightPx: 120,
 };
 
 const SILVER: Badge = {
@@ -45,7 +42,6 @@ const SILVER: Badge = {
   tipBg: "#f4f6f8",
   tipBorder: "#dde3e8",
   tip: "The second traveler to join this sailing, back when it was almost empty.",
-  cardPaddingRightPx: 120,
 };
 
 const BRONZE: Badge = {
@@ -57,7 +53,6 @@ const BRONZE: Badge = {
   tipBg: "#fbf1e8",
   tipBorder: "#ecd3bd",
   tip: "The third traveler to join this sailing, back when it was almost empty.",
-  cardPaddingRightPx: 120,
 };
 
 const CREW: Badge = {
@@ -69,7 +64,6 @@ const CREW: Badge = {
   tipBg: "#f3f8f8",
   tipBorder: "#d5e6e7",
   tip: "Among the first 10 travelers to join this sailing - they got here before the board filled up.",
-  cardPaddingRightPx: 104,
 };
 
 /**
