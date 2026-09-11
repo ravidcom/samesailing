@@ -101,10 +101,19 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
       return data.country && data.goals.length > 0
         ? ""
         : "Please select your country and at least one goal.";
-    if (s === 4)
+    if (s === 4) {
+      // Only asked of a brand-new signup (StepConsent hides the picker once
+      // loggedIn) - picking "nickname" with nothing typed in it isn't just
+      // an empty display name, it silently falls all the way through to a
+      // random anon handle (see resolveDisplayName), which reads as a much
+      // bigger surprise than a blank field would.
+      if (!auth.loggedIn && data.nameMode === "nick" && !data.nickname.trim()) {
+        return "Please enter a nickname, or switch back to using your real name.";
+      }
       return data.agreedTerms
         ? ""
         : "You must confirm you're 18+ and agree to the Terms of Use and Privacy Policy to continue.";
+    }
     return "";
   }
 

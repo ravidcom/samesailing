@@ -38,6 +38,7 @@ export default function ProfilePage() {
   // one of the two remaining options selected instead of neither.
   const [modeDraft, setModeDraft] = useState<NameMode>(nameMode === "anon" ? "real" : nameMode);
   const [nickDraft, setNickDraft] = useState(nickname);
+  const [nameError, setNameError] = useState("");
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -46,6 +47,15 @@ export default function ProfilePage() {
   const [changingPassword, setChangingPassword] = useState(false);
 
   function save() {
+    // "Nickname" with nothing typed in it doesn't just leave the display
+    // name blank - it silently falls all the way through to a random anon
+    // handle (see resolveDisplayName), which reads as a much bigger
+    // surprise than a blank field would.
+    if (modeDraft === "nick" && !nickDraft.trim()) {
+      setNameError("Please enter a nickname, or switch back to using your real name.");
+      return;
+    }
+    setNameError("");
     updateAccount({
       nameMode: modeDraft,
       nickname: nickDraft.trim(),
@@ -187,6 +197,7 @@ export default function ProfilePage() {
           onNicknameChange={setNickDraft}
           firstName={user?.name ?? ""}
         />
+        {nameError ? <div className={errorText}>{nameError}</div> : null}
 
         <p className="mt-3 text-[11.5px] leading-relaxed text-muted-2">
           Who&apos;s coming and what you&apos;re looking for are set per sailing - edit them on each cruise card.
