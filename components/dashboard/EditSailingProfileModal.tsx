@@ -126,7 +126,7 @@ export default function EditSailingProfileModal({
             onContinue={save}
             onBack={() => setPage(1)}
             continueLabel={submitting ? "Saving…" : "Save changes →"}
-            loggedIn
+            accountCountry={country}
           />
         )}
       </div>

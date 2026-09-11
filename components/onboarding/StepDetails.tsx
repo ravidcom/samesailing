@@ -14,14 +14,15 @@ type Props = StepProps & {
   /** Country is set once at signup and carried into every sailing after
    * that (see OnboardingWizard/EditSailingProfileModal) - a returning
    * traveler sees it as a fixed fact here, not a field to fill in again.
-   * Doesn't apply if the account has no country yet (e.g. an OAuth signup,
-   * which creates the profile before ever asking) - that traveler still
-   * needs the real picker, or they'd be stuck with a blank, unfillable
-   * field and could never pass validation to join. */
-  loggedIn: boolean;
+   * This is the account's own already-saved country, not data.country -
+   * that also holds whatever the traveler is *currently* picking below
+   * when the account doesn't have one yet, and locking the field the
+   * moment they choose anything would trap them mid-pick with no way to
+   * change their mind before continuing. */
+  accountCountry: string;
 };
 
-export default function StepDetails({ data, update, error, onContinue, onBack, continueLabel, loggedIn }: Props) {
+export default function StepDetails({ data, update, error, onContinue, onBack, continueLabel, accountCountry }: Props) {
   function toggleGoal(id: string) {
     const has = data.goals.includes(id);
     update({ goals: has ? data.goals.filter((g) => g !== id) : [...data.goals, id] });
@@ -30,9 +31,9 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
   return (
     <div>
       <label className={fieldLabel}>Where are you from?</label>
-      {loggedIn && data.country ? (
+      {accountCountry ? (
         <div className="flex items-center gap-2 rounded-lg bg-[#f2f7f7] px-3 py-2 text-sm font-semibold text-muted-2">
-          ✓ {data.country}
+          ✓ {accountCountry}
         </div>
       ) : (
         <CountrySelect value={data.country} onChange={(v) => update({ country: v })} />

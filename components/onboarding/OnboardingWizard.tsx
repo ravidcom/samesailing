@@ -364,7 +364,7 @@ export default function OnboardingWizard({ sailing }: { sailing: SailingInfo | n
             error={error}
             onContinue={() => goNext(4)}
             onBack={() => goBack(2)}
-            loggedIn={auth.loggedIn}
+            accountCountry={auth.country}
           />
         ) : null}
         {step === 4 ? (

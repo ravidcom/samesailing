@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { COUNTRIES, COUNTRY_OTHER } from "@/lib/countries";
-import { textInput } from "@/lib/formStyles";
+import { textInput, selectInput } from "@/lib/formStyles";
 
 // Pinned to the top of the unfiltered list - the biggest English-speaking
 // cruise-departure markets, so most travelers see their own country without
@@ -12,7 +12,15 @@ const POPULAR_COUNTRIES = ["United States", "United Kingdom", "Canada"];
 const ALL_COUNTRIES = [...COUNTRIES, COUNTRY_OTHER];
 
 /** Shared by onboarding and My profile so a country picked in either place
- * always matches the same canonical spelling flagUrl() looks up by. */
+ * always matches the same canonical spelling flagUrl() looks up by.
+ *
+ * A single native <select>, closed by default like any other dropdown in
+ * the app - it used to swap in a permanently-expanded, multi-row listbox
+ * (the `size` attribute) with a separate "picked" state on top, which
+ * looked stuck open before a choice and had no way back in afterward
+ * short of clearing the value first. The search box above still narrows
+ * which options the (still perfectly normal, closed) select shows once
+ * opened. */
 export default function CountrySelect({
   value,
   onChange,
@@ -21,24 +29,9 @@ export default function CountrySelect({
   onChange: (v: string) => void;
 }) {
   const [search, setSearch] = useState("");
-  const filtered = ALL_COUNTRIES.filter((c) => c.toLowerCase().includes(search.toLowerCase()));
-  const listSize = search ? Math.min(Math.max(filtered.length, 2), 6) : 5;
-
-  if (value) {
-    return (
-      <div className="mb-1.5 flex items-center gap-2 rounded-lg bg-[#dff1f2] px-3 py-2 text-sm font-semibold text-teal">
-        <span>✓ {value}</span>
-        <button
-          type="button"
-          onClick={() => onChange("")}
-          className="ml-auto bg-none text-base text-muted-2 hover:text-muted"
-          aria-label="Clear country"
-        >
-          ×
-        </button>
-      </div>
-    );
-  }
+  const filtered = search
+    ? ALL_COUNTRIES.filter((c) => c.toLowerCase().includes(search.toLowerCase()))
+    : null;
 
   return (
     <>
@@ -50,14 +43,15 @@ export default function CountrySelect({
         onChange={(e) => setSearch(e.target.value)}
       />
       <select
-        size={listSize}
         aria-label="Country"
-        className="w-full cursor-pointer rounded-[11px] border-[1.5px] border-border bg-input p-1.5 font-sans text-base sm:text-sm text-charcoal"
+        className={selectInput}
+        value={value}
         onChange={(e) => onChange(e.target.value)}
-        value=""
       >
-        <option value="" disabled hidden />
-        {search ? (
+        <option value="" disabled>
+          Select your country
+        </option>
+        {filtered ? (
           filtered.map((c) => (
             <option key={c} value={c}>
               {c === COUNTRY_OTHER ? "🌍 Other / Not listed" : c}
