@@ -83,7 +83,7 @@ type AuthContextValue = {
   joinSailing: (sailing: NewSailingJoin) => Promise<{ error?: string }>;
   updateSailingProfile: (sailingId: string, profile: OnboardingProfile) => Promise<{ error?: string }>;
   removeSailing: (sailingId: string) => Promise<void>;
-  updateAccount: (patch: { nameMode?: NameMode; nickname?: string }) => Promise<void>;
+  updateAccount: (patch: { nameMode?: NameMode; nickname?: string; country?: string }) => Promise<void>;
   updateAvatar: (emoji: string, tint: string) => Promise<{ error?: string }>;
   updatePassword: (newPassword: string) => Promise<{ error?: string }>;
   updateNotificationSettings: (patch: Partial<NotificationSettings>) => Promise<void>;
@@ -390,11 +390,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMySailings((prev) => prev.filter((s) => s.id !== sailingId));
   }
 
-  async function updateAccount(patch: { nameMode?: NameMode; nickname?: string }) {
+  async function updateAccount(patch: { nameMode?: NameMode; nickname?: string; country?: string }) {
     if (!authUser) return;
-    const dbPatch: Partial<Pick<ProfileRow, "name_mode" | "nickname">> = {};
+    const dbPatch: Partial<Pick<ProfileRow, "name_mode" | "nickname" | "country">> = {};
     if (patch.nameMode !== undefined) dbPatch.name_mode = patch.nameMode;
     if (patch.nickname !== undefined) dbPatch.nickname = patch.nickname;
+    if (patch.country !== undefined) dbPatch.country = patch.country;
     const { data } = await supabase
       .from("profiles")
       .update(dbPatch)
