@@ -212,6 +212,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Keeps user_activity.last_seen_at fresh while a session stays open on
+  // one page load, not just at login/reload - the community chat's "online
+  // in the last 5 minutes" signal (community_chat_presence() in the DB)
+  // would otherwise read as empty for anyone who's been on the site more
+  // than a few minutes without a fresh navigation.
+  useEffect(() => {
+    const currentUserId = authUser?.id;
+    if (!currentUserId) return;
+    const interval = setInterval(() => {
+      supabase.from("user_activity").upsert({ user_id: currentUserId, last_seen_at: new Date().toISOString() });
+    }, 120000);
+    return () => clearInterval(interval);
+  }, [authUser?.id, supabase]);
+
   // Drives the "Chat" badge count in the nav/tab bar: how many notifications
   // (group or DM messages) have landed since the user last visited /chat.
   // "Seen" is tracked client-side (localStorage) rather than in the DB —

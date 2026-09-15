@@ -1478,3 +1478,31 @@ create policy "Any signed-in user can post to the global room"
     and auth.uid() = user_id
     and not is_banned()
   );
+
+-- Powers the community chat card's presence cues (globe/dot/"N online now")
+-- on the Chat screen. A live-looking count is only trustworthy if it's
+-- real, so this returns aggregates rather than letting every traveler read
+-- user_activity rows directly (those stay admin-only - see "Admins can view
+-- all last-seen timestamps" above). "Online" = active in the last 5
+-- minutes; lib/auth-context.tsx refreshes user_activity.last_seen_at on a
+-- timer while a session stays open, not just at login, so this window
+-- reflects people still on the site rather than only people who just
+-- loaded a page.
+create or replace function community_chat_presence()
+returns table (
+  online_now bigint,
+  total_travelers bigint,
+  total_sailings bigint
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select
+    (select count(*) from user_activity where last_seen_at >= now() - interval '5 minutes'),
+    (select count(*) from profiles),
+    (select count(distinct sailing_id) from joined_sailings);
+$$;
+
+grant execute on function community_chat_presence() to authenticated;

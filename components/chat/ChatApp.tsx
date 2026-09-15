@@ -1147,6 +1147,16 @@ function ChatAppInner() {
   const [globalMessages, setGlobalMessages] = useState<ChatMessage[]>([]);
   const [globalDraft, setGlobalDraft] = useState("");
   const [globalTimestamps, setGlobalTimestamps] = useState<number[]>([]);
+  // Presence for the community chat card (§ HANDOFF - Community Chat
+  // Presence): aggregate counts only, never per-user rows - see
+  // community_chat_presence() in schema.sql for why. Null until the first
+  // fetch resolves, so the card can render its no-fake-signal fallback
+  // instead of a flash of "0 online" on first paint.
+  const [communityPresence, setCommunityPresence] = useState<{
+    onlineNow: number;
+    totalTravelers: number;
+    totalSailings: number;
+  } | null>(null);
   // Pioneer badge rank, avatar, and LGBTQ+ status per member of the active
   // sailing, for the group thread's sender line (§3.3: one badge slot -
   // founding crew, else a pride bar, never both) and gutter avatar (§3.2).
@@ -1254,6 +1264,16 @@ function ChatAppInner() {
   const groupReadAt = activeSailing ? (readMap[`group:${activeSailing.id}`] ?? 0) : 0;
   const groupUnreadCount = realGroupMsgs.filter((m) => !m.mine && m.atMs && m.atMs > groupReadAt).length;
   const lastRealGroupMsg = realGroupMsgs.length > 0 ? realGroupMsgs[realGroupMsgs.length - 1] : null;
+  const lastGlobalMsg = globalMessages.length > 0 ? globalMessages[globalMessages.length - 1] : null;
+  // Community chat card state (HANDOFF - Community Chat Presence): which of
+  // the three presence rows to render. Defaults to 0/"quiet" until the
+  // first community_chat_presence() fetch resolves - never a fake "online"
+  // reading, per the handoff's one hard rule.
+  const communityOnline = communityPresence?.onlineNow ?? 0;
+  const communityTotalTravelers = communityPresence?.totalTravelers ?? 0;
+  const communityTotalSailings = communityPresence?.totalSailings ?? 0;
+  const communityState: "live" | "quiet" | "empty" =
+    lastGlobalMsg == null ? "empty" : communityOnline > 0 ? "live" : "quiet";
   // Travelers not already visible via the avatar stack (up to 3) or a DM row.
   const moreTravelersCount = Math.max(travelerCount - 3 - dmThreads.length, 0);
 
@@ -1616,6 +1636,33 @@ function ChatAppInner() {
     return () => {
       cancelled = true;
       supabase.removeChannel(channel);
+    };
+  }, [supabase, userId]);
+
+  // Community chat presence: polled rather than realtime (it's an
+  // aggregate, not a row feed - there's no postgres_changes event that
+  // fires when "how many people were active in the last 5 minutes"
+  // changes). A minute is frequent enough for a number that only relabels
+  // a card, and cheap since community_chat_presence() is three count(*)s.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    function load() {
+      supabase.rpc("community_chat_presence").then(({ data }) => {
+        if (cancelled || !data || data.length === 0) return;
+        const row = data[0];
+        setCommunityPresence({
+          onlineNow: row.online_now,
+          totalTravelers: row.total_travelers,
+          totalSailings: row.total_sailings,
+        });
+      });
+    }
+    load();
+    const interval = setInterval(load, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
     };
   }, [supabase, userId]);
 
@@ -2384,89 +2431,129 @@ function ChatAppInner() {
         ) : null}
 
         <div className="flex-1 overflow-y-auto">
-          <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">
-            GROUP CHAT
+          {/* HANDOFF - Community Chat Presence (option 3A): the community
+              room is the only one with real activity this early, so it
+              takes the loud teal treatment and the top slot; the sailing's
+              own group chat becomes the quiet row below. Not scoped to
+              activeSailing at all - shown regardless of which sailing (if
+              any) is selected, since this is the one room every signed-in
+              traveler can use. */}
+          <div className="flex items-center gap-2 px-3.5 pb-2 pt-3.5">
+            <span className="text-[11px] font-extrabold tracking-[.13em] text-teal uppercase">Start here</span>
+            <span className="h-px flex-1 bg-[#e4f0f1]" />
           </div>
           <button
             type="button"
-            onClick={openGroupPane}
-            aria-label="Open group chat"
+            onClick={openGlobalPane}
+            aria-label="Open community chat"
             style={{ background: "linear-gradient(135deg,#0E8C99,#0a6f7a)" }}
-            className={`mx-2 mb-1.5 flex w-[calc(100%-16px)] flex-col gap-2.75 rounded-2xl p-3.5 text-left shadow-[0_10px_22px_rgba(14,140,153,.30)] transition-[transform,box-shadow] duration-[120ms] ${
-              pane.type === "group"
+            className={`relative mx-2 mb-1.5 flex w-[calc(100%-16px)] flex-col gap-2.75 overflow-hidden rounded-2xl p-3.5 text-left shadow-[0_10px_22px_rgba(14,140,153,.30)] transition-[transform,box-shadow] duration-[120ms] ${
+              pane.type === "global" && mobileShowingThread
                 ? ""
                 : "hover:-translate-y-px hover:shadow-[0_13px_26px_rgba(14,140,153,.38)] active:scale-[.978] active:shadow-[0_5px_12px_rgba(14,140,153,.28)]"
             }`}
           >
-            <div className="flex items-center gap-2.5">
-              <span className="shrink-0 text-[22px]">⛴️</span>
+            {/* Sheen only plays when the room actually has someone in it
+                right now - a moving shine over a dead room is its own kind
+                of fake liveness. */}
+            {communityState === "live" ? (
+              <span
+                aria-hidden="true"
+                className="cc-sheen pointer-events-none absolute inset-y-0 w-[36%]"
+                style={{
+                  background: "linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.17),rgba(255,255,255,0))",
+                }}
+              />
+            ) : null}
+            {globalUnread > 0 ? (
+              <span className="absolute top-3 right-3 z-10 flex h-[20px] min-w-[20px] items-center justify-center rounded-full bg-coral px-1.5 text-[11px] font-bold text-white">
+                {globalUnread > 9 ? "9+" : globalUnread}
+              </span>
+            ) : null}
+            <div className="relative flex items-center gap-2.75">
+              <span
+                className="cc-globe flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[23px]"
+                style={{ background: "rgba(255,255,255,.17)" }}
+              >
+                🌍
+              </span>
               <div className="min-w-0 flex-1">
-                <div className="truncate font-display text-[15px] font-bold text-white">{activeSailing.shipName}</div>
-                <div className="mt-px truncate text-[11px] font-medium text-white/85">
-                  Group chat · {travelerCount} traveler{travelerCount === 1 ? "" : "s"}
+                <div className="truncate font-display text-[16.5px] leading-[1.2] font-bold text-white">
+                  Community chat
+                </div>
+                <div className="mt-[3px] flex items-center gap-1.5">
+                  {communityState === "live" ? (
+                    <>
+                      <span className="cc-dot h-[7px] w-[7px] shrink-0 rounded-full bg-[#2ec478]" />
+                      <span className="truncate text-[12px] font-bold text-white/95">
+                        {communityOnline} traveler{communityOnline === 1 ? "" : "s"} online now
+                      </span>
+                    </>
+                  ) : communityState === "quiet" ? (
+                    <span className="truncate text-[12px] font-bold text-white/95">
+                      {communityTotalTravelers} traveler{communityTotalTravelers === 1 ? "" : "s"} · last message{" "}
+                      {relativeTimeLabel(lastGlobalMsg!.atMs ?? Date.now())}
+                    </span>
+                  ) : (
+                    <span className="truncate text-[12px] font-bold text-white/95">
+                      {communityTotalTravelers} traveler{communityTotalTravelers === 1 ? "" : "s"} from{" "}
+                      {communityTotalSailings} sailing{communityTotalSailings === 1 ? "" : "s"}
+                    </span>
+                  )}
                 </div>
               </div>
-              {groupUnreadCount > 0 ? (
-                <span className="flex h-[22px] min-w-[22px] shrink-0 items-center justify-center rounded-full bg-white px-1.5 text-[12px] font-extrabold text-teal">
-                  {groupUnreadCount > 9 ? "9+" : groupUnreadCount}
-                </span>
-              ) : null}
             </div>
-            {travelerCount > 1 ? (
-              <div className="flex shrink-0">
-                {Object.entries(memberInfo)
-                  .filter(([id]) => id !== userId)
-                  .slice(0, 3)
-                  .map(([id, m], i) => (
-                    <span key={id} className={i > 0 ? "-ml-2.5 rounded-full" : "rounded-full"} style={{ boxShadow: "0 0 0 2px #0a6f7a" }}>
-                      <Avatar emoji={m.avatarEmoji} tint={m.avatarTint} size={26} />
-                    </span>
-                  ))}
-              </div>
-            ) : null}
-            {/* HANDOFF - Group Chat Card Tappable: a white action row so the
-                card reads as tappable, not just a colored info block. Its
-                label IS groupStatusLine()'s existing ladder (unread count,
-                last message, recent joins, "Be the first to say hello" as
-                the launch-default fallback) rather than a flat "Open group
-                chat" - that text used to render as its own line above this
-                row; showing it in both places would just duplicate it. */}
-            <div className="mt-0.5 flex min-h-[44px] items-center justify-between gap-2.5 rounded-[11px] bg-white px-3.25 py-2.75 shadow-[0_2px_6px_rgba(8,60,66,.14)]">
-              <span className="truncate text-[13.5px] font-extrabold text-[#0a6f7a]">
-                {groupStatusLine(groupUnreadCount, lastRealGroupMsg?.atMs ? { senderName: lastRealGroupMsg.sender, atMs: lastRealGroupMsg.atMs } : null, joinsThisWeek)}
-              </span>
+            <div className="relative mt-0.5 flex min-h-[44px] items-center justify-between gap-2.5 rounded-[11px] bg-white px-3.25 py-2.5">
+              {communityState === "empty" ? (
+                <span className="truncate text-[13.5px] font-extrabold text-[#0a6f7a]">Say hello to everyone</span>
+              ) : (
+                <div className="min-w-0">
+                  <div className="text-[10px] font-extrabold tracking-[.09em] text-[#8ba7ab] uppercase">Latest</div>
+                  <div className="truncate text-[13px] font-bold text-[#20464b]">
+                    {lastGlobalMsg!.sender}: {lastGlobalMsg!.body.replace(/\s+/g, " ").trim()}
+                  </div>
+                </div>
+              )}
               <span aria-hidden="true" className="shrink-0 text-[17px] font-extrabold text-teal">
                 →
               </span>
             </div>
           </button>
 
-          {/* Not scoped to activeSailing at all - shown regardless of which
-              sailing (if any) is selected, and regardless of myRoomTypes,
-              since this is the one room every signed-in traveler can use. */}
-          <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">COMMUNITY</div>
-          <div className="mx-3.5 mb-3 overflow-hidden rounded-2xl border border-[#e7f1f2] bg-white">
-            <button
-              type="button"
-              onClick={openGlobalPane}
-              className={`flex w-full items-center gap-2.5 px-3.5 py-3 text-left transition-colors hover:bg-input ${
-                pane.type === "global" && mobileShowingThread ? "bg-teal-tint" : ""
-              }`}
-            >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-tint text-[17px]">
-                🌍
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[13px] font-bold text-charcoal">Community chat</div>
-                <div className="truncate text-[11.5px] text-muted-2">Every SameSailing traveler</div>
-              </div>
-              {globalUnread > 0 ? (
-                <span className="flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full bg-coral px-1.5 text-[11px] font-bold text-white">
-                  {globalUnread > 9 ? "9+" : globalUnread}
-                </span>
-              ) : null}
-            </button>
+          <div className="px-3.5 pb-2 pt-3.5 text-[11px] font-extrabold tracking-[.13em] text-[#8ba7ab] uppercase">
+            Your sailing
           </div>
+          <button
+            type="button"
+            onClick={openGroupPane}
+            aria-label="Open group chat"
+            className={`mx-3.5 mb-3 flex w-[calc(100%-28px)] items-center gap-2.75 rounded-[14px] border border-[#e4f0f1] p-3.25 text-left transition-colors ${
+              pane.type === "group" && mobileShowingThread ? "bg-teal-tint" : "hover:bg-input"
+            }`}
+          >
+            <span className="shrink-0 text-[20px]">⛴️</span>
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-display text-[14.5px] font-bold text-charcoal">
+                {activeSailing.shipName}
+              </div>
+              <div className="mt-px truncate text-[12px] font-semibold text-[#7fa0a4]">
+                {travelerCount} traveler{travelerCount === 1 ? "" : "s"} ·{" "}
+                {groupStatusLine(
+                  groupUnreadCount,
+                  lastRealGroupMsg?.atMs ? { senderName: lastRealGroupMsg.sender, atMs: lastRealGroupMsg.atMs } : null,
+                  joinsThisWeek
+                )}
+              </div>
+            </div>
+            {groupUnreadCount > 0 ? (
+              <span className="flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full bg-coral px-1.5 text-[11px] font-bold text-white">
+                {groupUnreadCount > 9 ? "9+" : groupUnreadCount}
+              </span>
+            ) : null}
+            <span aria-hidden="true" className="shrink-0 text-[17px] font-extrabold text-teal">
+              →
+            </span>
+          </button>
 
           {myRoomTypes.length > 0 ? (
             <>
