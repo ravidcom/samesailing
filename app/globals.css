@@ -60,6 +60,53 @@ body {
   }
 }
 
+/* Community chat card presence cues (HANDOFF - Community Chat Presence). */
+@keyframes ccGlobeTilt {
+  0%,
+  100% {
+    transform: rotate(-7deg);
+  }
+  50% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes ccDotPulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(46, 196, 120, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(46, 196, 120, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(46, 196, 120, 0);
+  }
+}
+@keyframes ccSheenSweep {
+  0% {
+    transform: translateX(-120%);
+  }
+  55%,
+  100% {
+    transform: translateX(320%);
+  }
+}
+.cc-globe {
+  animation: ccGlobeTilt 9s ease-in-out infinite;
+}
+.cc-dot {
+  animation: ccDotPulse 2.4s ease-out infinite;
+}
+.cc-sheen {
+  animation: ccSheenSweep 7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cc-globe,
+  .cc-dot,
+  .cc-sheen {
+    animation: none !important;
+  }
+}
+
 .select-chevron {
   appearance: none;
   -webkit-appearance: none;
