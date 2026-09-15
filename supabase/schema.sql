@@ -1457,3 +1457,24 @@ begin
   );
 end;
 $$;
+
+-- A single cross-sailing chat, so a brand-new traveler who lands on a
+-- near-empty sailing (most of them, this early on) still finds somewhere
+-- with real activity instead of a dead board. Reuses group_messages (same
+-- realtime/soft-delete/report machinery as every other room) under the
+-- sentinel sailing_id 'global' rather than a parallel table - room_type
+-- stays null here, same as a sailing's own main chat. Deliberately NOT
+-- gated on joined_sailings membership at all: unlike every other room,
+-- this one isn't scoped to a sailing, so any signed-in traveler can read
+-- and post regardless of which sailing(s) they've joined.
+create policy "Any signed-in user can read the global room"
+  on group_messages for select
+  using (sailing_id = 'global');
+
+create policy "Any signed-in user can post to the global room"
+  on group_messages for insert
+  with check (
+    sailing_id = 'global'
+    and auth.uid() = user_id
+    and not is_banned()
+  );

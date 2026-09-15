@@ -4,12 +4,10 @@ import type { Metadata } from "next";
 import NavBar from "@/components/NavBar";
 import { getSailingById, MIN_BROWSE_THRESHOLD } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
-import { scarcityState } from "@/lib/pioneer";
 import { getCachedSailingPassengers, getCachedSailingPassengerNames } from "@/lib/sailingPassengers";
 import { shortDateWithYear } from "@/lib/sailingLabel";
 import { sanitizeAvatar } from "@/lib/avatars";
 import Avatar from "@/components/ui/Avatar";
-import FoundingBadgeChips from "@/components/board/FoundingBadgeChips";
 
 function describeSailing(sailing: NonNullable<Awaited<ReturnType<typeof getSailingById>>>): string {
   return `${sailing.shipName} sails a ${sailing.itinerary} itinerary, departing ${sailing.date} from ${sailing.port}. Meet fellow travelers on this exact sailing before you set sail.`;
@@ -220,26 +218,28 @@ export default async function SailingResultPage({
                   href={`/join/${sailing.id}`}
                   className="block w-full rounded-xl bg-teal py-3.5 text-center font-sans text-[15px] font-semibold text-white transition-colors hover:bg-teal-dark"
                 >
-                  ⚓ Join as a founding member - it&apos;s free
+                  ⚓ Join this sailing - it&apos;s free
                 </Link>
-                {(() => {
-                  const scarcity = scarcityState(n);
-                  return (
-                    <div className="mt-2.5 flex items-center justify-center gap-1.75 text-[12.5px] font-bold" style={{ color: scarcity.color }}>
-                      <span>🔥</span>
-                      <span>{scarcity.text}</span>
-                    </div>
-                  );
-                })()}
 
                 <div className="my-[18px] h-px bg-[#eef6f7]" />
 
-                <div className="mb-2 font-display text-base font-bold text-charcoal">Founding member perks</div>
-                <p className="mb-3.5 text-[13.5px] leading-relaxed text-muted">
-                  The first three aboard earn a medal frame on their passenger card; the next seven come aboard as
-                  Early crew. Badged travelers sit at the top of the passenger board.
-                </p>
-                <FoundingBadgeChips />
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <div className="text-[17px] leading-[1.3]">💬</div>
+                    <div className="mt-[3px] text-[12.5px] font-bold text-charcoal">Group chat</div>
+                    <div className="mt-px text-[11.5px] leading-[1.35] text-muted-2">Everyone on board</div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[17px] leading-[1.3]">✉️</div>
+                    <div className="mt-[3px] text-[12.5px] font-bold text-charcoal">Private messages</div>
+                    <div className="mt-px text-[11.5px] leading-[1.35] text-muted-2">One to one</div>
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-[17px] leading-[1.3]">🌍</div>
+                    <div className="mt-[3px] text-[12.5px] font-bold text-charcoal">Community chat</div>
+                    <div className="mt-px text-[11.5px] leading-[1.35] text-muted-2">Every SameSailing traveler</div>
+                  </div>
+                </div>
               </>
             )}
 
