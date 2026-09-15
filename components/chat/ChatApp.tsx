@@ -1115,7 +1115,9 @@ function ChatAppInner() {
     [userId]
   );
 
-  const [pane, setPane] = useState<{ type: "group" } | { type: "dm"; id: string } | { type: "room"; roomType: RoomType }>({
+  const [pane, setPane] = useState<
+    { type: "group" } | { type: "dm"; id: string } | { type: "room"; roomType: RoomType } | { type: "global" }
+  >({
     type: "group",
   });
   const [mobileShowingThread, setMobileShowingThread] = useState(false);
@@ -1136,6 +1138,15 @@ function ChatAppInner() {
   const [roomDraft, setRoomDraft] = useState("");
   const [lockedSheetType, setLockedSheetType] = useState<RoomType | null>(null);
   const [roomInfoOpen, setRoomInfoOpen] = useState(false);
+  // The global room: one chat shared by every signed-in traveler regardless
+  // of sailing (sailing_id = 'global' in the DB) - deliberately kept as
+  // fully separate state from the interest-group rooms above rather than
+  // folded into RoomType/activeRoomType, since all of that machinery is
+  // pervasively coupled to activeSailing and this room isn't scoped to any
+  // sailing at all.
+  const [globalMessages, setGlobalMessages] = useState<ChatMessage[]>([]);
+  const [globalDraft, setGlobalDraft] = useState("");
+  const [globalTimestamps, setGlobalTimestamps] = useState<number[]>([]);
   // Pioneer badge rank, avatar, and LGBTQ+ status per member of the active
   // sailing, for the group thread's sender line (§3.3: one badge slot -
   // founding crew, else a pride bar, never both) and gutter avatar (§3.2).
@@ -1179,6 +1190,7 @@ function ChatAppInner() {
   const groupMessages = realGroupMsgs;
   const realIds = useMemo(() => new Set(realGroupMsgs.map((m) => m.id)), [realGroupMsgs]);
   const groupRuns = useMemo(() => buildMessageRuns(groupMessages), [groupMessages]);
+  const globalRuns = useMemo(() => buildMessageRuns(globalMessages), [globalMessages]);
   const dmRuns = useMemo(() => buildMessageRuns(dmMessages), [dmMessages]);
   const activeDmThreadId = pane.type === "dm" ? pane.id : null;
   const activeThread = dmThreads.find((t) => t.id === activeDmThreadId) ?? null;
@@ -1211,9 +1223,11 @@ function ChatAppInner() {
   const groupContainerRef = useRef<HTMLDivElement>(null);
   const dmContainerRef = useRef<HTMLDivElement>(null);
   const roomContainerRef = useRef<HTMLDivElement>(null);
+  const globalContainerRef = useRef<HTMLDivElement>(null);
   const groupPillRef = useRef<HTMLButtonElement>(null);
   const dmPillRef = useRef<HTMLButtonElement>(null);
   const roomPillRef = useRef<HTMLButtonElement>(null);
+  const globalPillRef = useRef<HTMLButtonElement>(null);
   // The pane's own container div unmounts/remounts each time you switch
   // away and back (conditional {pane.type === "group" ? ... : null}
   // rendering), so a fresh (scrollTop-0) node needs a fresh jump-to-bottom
@@ -1230,6 +1244,12 @@ function ChatAppInner() {
   );
   const dmScroll = useAutoScroll(dmContainerRef, dmPillRef, dmMessages.length, activeDmThreadId);
   const roomScroll = useAutoScroll(roomContainerRef, roomPillRef, roomMessages.length, activeRoomType);
+  const globalScroll = useAutoScroll(
+    globalContainerRef,
+    globalPillRef,
+    globalMessages.length,
+    pane.type === "global" ? "global" : null
+  );
 
   const groupReadAt = activeSailing ? (readMap[`group:${activeSailing.id}`] ?? 0) : 0;
   const groupUnreadCount = realGroupMsgs.filter((m) => !m.mine && m.atMs && m.atMs > groupReadAt).length;
@@ -1354,6 +1374,18 @@ function ChatAppInner() {
     setSyncedRoomReadSignature(roomReadSignature);
     markRead(roomReadKey);
   }
+
+  // The global room's read key is a fixed constant, not sailing-namespaced -
+  // it's the same one room no matter which sailing (if any) is active.
+  const globalReadKey = pane.type === "global" ? "global" : null;
+  const globalReadSignature = globalReadKey ? `${globalReadKey}:${globalMessages.length}` : null;
+  const [syncedGlobalReadSignature, setSyncedGlobalReadSignature] = useState<string | null>(null);
+  if (globalReadKey && globalReadSignature !== syncedGlobalReadSignature) {
+    setSyncedGlobalReadSignature(globalReadSignature);
+    markRead(globalReadKey);
+  }
+  const globalReadAt = readMap["global"] ?? 0;
+  const globalUnread = globalTimestamps.filter((ms) => ms > globalReadAt).length;
 
   // Restores a never-sent draft when opening (or switching to) a DM thread.
   const [draftLoadedForThread, setDraftLoadedForThread] = useState<string | null>(null);
@@ -1531,6 +1563,61 @@ function ChatAppInner() {
       supabase.removeChannel(channel);
     };
   }, [activeSailing, activeRoomType, supabase, userId]);
+
+  // The global room: same load-history-then-subscribe shape as the
+  // interest-group room effect above, but under the sentinel
+  // sailing_id = 'global' and with no dependency on activeSailing at all -
+  // it's the one room that isn't scoped to a sailing, so it stays loaded
+  // and subscribed regardless of which sailing (if any) is active.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+
+    function upsert(row: GroupMessageRow) {
+      const msg = rowToGroupMessage(row, userId);
+      setGlobalMessages((prev) =>
+        prev.some((m) => m.id === msg.id) ? prev.map((m) => (m.id === msg.id ? msg : m)) : [...prev, msg]
+      );
+    }
+
+    supabase
+      .from("group_messages")
+      .select("id,sailing_id,user_id,sender_label,body,deleted,created_at,room_type")
+      .eq("sailing_id", "global")
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setGlobalMessages(data.map((row) => rowToGroupMessage(row, userId)));
+        setGlobalTimestamps(
+          data.filter((row) => row.user_id !== userId).map((row) => new Date(row.created_at).getTime())
+        );
+      });
+
+    const channel = supabase
+      .channel("group_room:global")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "group_messages", filter: "sailing_id=eq.global" },
+        (payload) => {
+          const row = payload.new as GroupMessageRow;
+          upsert(row);
+          if (row.user_id !== userId) {
+            setGlobalTimestamps((prev) => [...prev, new Date(row.created_at).getTime()]);
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "group_messages", filter: "sailing_id=eq.global" },
+        (payload) => upsert(payload.new as GroupMessageRow)
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [supabase, userId]);
 
   // Every room this traveler belongs to (not just whichever is open right
   // now) - one lightweight query for message timestamps, so each room row
@@ -1839,7 +1926,9 @@ function ChatAppInner() {
 
   function selectSailing(id: string) {
     setActiveSailingId(id);
-    setPane({ type: "group" });
+    // The global room isn't scoped to any one sailing - switching which
+    // sailing is active shouldn't kick someone out of it.
+    setPane((p) => (p.type === "global" ? p : { type: "group" }));
   }
 
   /** Pushes exactly one history entry per list→thread transition on
@@ -1870,6 +1959,12 @@ function ChatAppInner() {
       return;
     }
     setPane({ type: "room", roomType });
+    enterThreadHistory();
+    setMobileShowingThread(true);
+  }
+
+  function openGlobalPane() {
+    setPane({ type: "global" });
     enterThreadHistory();
     setMobileShowingThread(true);
   }
@@ -2101,6 +2196,47 @@ function ChatAppInner() {
     }
   }
 
+  async function sendGlobal() {
+    const text = globalDraft.trim();
+    if (!text || !userId) return;
+    setGlobalDraft("");
+    // Not scoped to any sailing, so there's no partyType context to hand
+    // in - myDisplayName(null) falls back to the "solo" handle noun for
+    // the (rare, anon-only) generated-handle case, same as every other
+    // caller that doesn't have one.
+    const senderLabel = myDisplayName(null).name;
+    const id = crypto.randomUUID();
+    const createdAt = new Date().toISOString();
+    globalScroll.markOwnMessageSent();
+    setGlobalMessages((prev) => [
+      ...prev,
+      rowToGroupMessage(
+        {
+          id,
+          sailing_id: "global",
+          user_id: userId,
+          sender_label: senderLabel,
+          body: text,
+          deleted: false,
+          created_at: createdAt,
+          room_type: null,
+        },
+        userId
+      ),
+    ]);
+    const { error } = await supabase.from("group_messages").insert({
+      id,
+      sailing_id: "global",
+      user_id: userId,
+      sender_label: senderLabel,
+      body: text,
+    });
+    if (error) {
+      setGlobalDraft(text);
+      setGlobalMessages((prev) => prev.filter((m) => m.id !== id));
+    }
+  }
+
   async function deleteGroupMessage(id: string, mine: boolean) {
     if (!userId) return;
     if (mine) {
@@ -2304,6 +2440,33 @@ function ChatAppInner() {
               </span>
             </div>
           </button>
+
+          {/* Not scoped to activeSailing at all - shown regardless of which
+              sailing (if any) is selected, and regardless of myRoomTypes,
+              since this is the one room every signed-in traveler can use. */}
+          <div className="px-3.5 pb-2 pt-3.5 text-[10.5px] font-bold tracking-[.09em] text-[#8aa6aa]">COMMUNITY</div>
+          <div className="mx-3.5 mb-3 overflow-hidden rounded-2xl border border-[#e7f1f2] bg-white">
+            <button
+              type="button"
+              onClick={openGlobalPane}
+              className={`flex w-full items-center gap-2.5 px-3.5 py-3 text-left transition-colors hover:bg-input ${
+                pane.type === "global" && mobileShowingThread ? "bg-teal-tint" : ""
+              }`}
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-tint text-[17px]">
+                🌍
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[13px] font-bold text-charcoal">Community chat</div>
+                <div className="truncate text-[11.5px] text-muted-2">Every SameSailing traveler</div>
+              </div>
+              {globalUnread > 0 ? (
+                <span className="flex h-[20px] min-w-[20px] shrink-0 items-center justify-center rounded-full bg-coral px-1.5 text-[11px] font-bold text-white">
+                  {globalUnread > 9 ? "9+" : globalUnread}
+                </span>
+              ) : null}
+            </button>
+          </div>
 
           {myRoomTypes.length > 0 ? (
             <>
@@ -2692,6 +2855,96 @@ function ChatAppInner() {
               {activeSailing.date}. Only {ROOM_NOUN_PLURAL[pane.roomType]} on this sailing can see these messages.
             </p>
           </Modal>
+        </div>
+      ) : null}
+
+      {/* GLOBAL COMMUNITY CHAT PANE - the one room that isn't scoped to any
+          sailing, so it stays open across sailing switches (see
+          selectSailing()'s guard) instead of getting reset like the others. */}
+      {pane.type === "global" ? (
+        <div className={`flex-1 flex-col overflow-hidden md:flex ${mobileShowingThread ? "flex" : "hidden"}`}>
+          <div className="flex shrink-0 items-center justify-between border-b border-border bg-white px-4.5 py-2.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <button
+                type="button"
+                onClick={() => backToList()}
+                className="mr-0.5 flex shrink-0 items-center gap-0.5 rounded-full py-1.5 pr-2.5 pl-1.5 font-sans text-[13px] font-semibold text-teal transition-colors hover:bg-[#f0f9f9] md:hidden"
+                aria-label="Back to all chats"
+              >
+                ‹ Chats
+              </button>
+              <div className="flex min-w-0 items-center gap-2 text-left">
+                <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[10px] bg-teal-tint text-[15px]">
+                  🌍
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[13px] font-bold text-charcoal">Community chat</div>
+                  <div className="truncate text-xs text-muted-2">Every SameSailing traveler</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative flex-1 overflow-hidden">
+            <div ref={globalContainerRef} className="flex h-full flex-col gap-2.5 overflow-y-auto px-4.5 py-3.5">
+              <div className="mx-auto max-w-[300px] rounded-full border border-[#dcecec] bg-[#eff6f6] px-3.25 py-1.5 text-center text-[11px] text-[#4c6d72]">
+                Open to every traveler on SameSailing, not just this sailing.
+              </div>
+              {globalRuns.map((run) => (
+                <div key={run.key} className="flex flex-col gap-2.5">
+                  {run.day ? <DayDivider label={run.day} /> : null}
+                  <MessageRunView
+                    run={run}
+                    memberInfo={memberInfo}
+                    isDeletable={(m) => globalMessages.some((gm) => gm.id === m.id)}
+                    isAdmin={isAdmin}
+                    blockedIds={blockedIds}
+                    onDelete={deleteGroupMessage}
+                    onSenderClick={openProfilePeek}
+                    onReport={reportGroupMessage}
+                    onToggleBlock={toggleBlock}
+                  />
+                </div>
+              ))}
+            </div>
+            <button
+              ref={globalPillRef}
+              type="button"
+              onClick={() => globalScroll.scrollToBottom("smooth")}
+              style={{ display: "none" }}
+              className="absolute bottom-3 left-1/2 items-center gap-1.5 rounded-full bg-teal px-4 py-2 font-sans text-xs font-semibold text-white shadow-[0_4px_14px_rgba(14,140,153,.35)] transition-transform -translate-x-1/2 hover:scale-105"
+            >
+              ↓ New message
+            </button>
+          </div>
+
+          <div className="shrink-0 border-t border-border bg-white px-5.5 py-3.5">
+            <div className="flex items-end gap-2.5">
+              <textarea
+                value={globalDraft}
+                onChange={(e) => setGlobalDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendGlobal();
+                  }
+                }}
+                placeholder="Message everyone..."
+                rows={1}
+                className="max-h-[100px] min-h-[44px] flex-1 resize-none rounded-xl border-[1.5px] border-border bg-input px-3.5 py-2.5 font-sans text-[16px] sm:text-[13px] text-charcoal transition-colors focus:border-teal"
+              />
+              <button
+                type="button"
+                onClick={sendGlobal}
+                className="shrink-0 rounded-[11px] bg-teal px-4.5 py-2.5 font-sans text-[13px] font-semibold text-white transition-colors hover:bg-teal-dark"
+              >
+                Send
+              </button>
+            </div>
+            <div className="mt-1.5 text-center text-[11px] text-muted-2">
+              Visible to every SameSailing traveler, on any sailing
+            </div>
+          </div>
         </div>
       ) : null}
 
