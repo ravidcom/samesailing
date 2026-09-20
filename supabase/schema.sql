@@ -1602,3 +1602,8 @@ drop policy if exists "Any signed-in user can read the global room" on group_mes
 create policy "Any signed-in user can read the global room"
   on group_messages for select
   using (sailing_id = 'global' and auth.uid() is not null);
+
+-- 5) Postgres grants EXECUTE to PUBLIC by default, so the presence counter was
+--    callable without signing in. Aggregates only, but there is no reason to.
+revoke execute on function community_chat_presence() from public, anon;
+grant execute on function community_chat_presence() to authenticated;
