@@ -40,15 +40,31 @@ type PublicSummaryRow = {
 const getCachedPublicSummary = unstable_cache(
   async (sailingId: string): Promise<PublicSummaryRow[]> => {
     const supabase = createServerClient();
-    const { data } = await supabase.rpc("get_sailing_public_summary", { p_sailing_id: sailingId });
+    const { data, error } = await supabase.rpc("get_sailing_public_summary", { p_sailing_id: sailingId });
+    // Throw rather than return []: a thrown result is never cached, whereas
+    // an empty list would be stored for the whole revalidate window and
+    // read as "0 travelers".
+    if (error) throw new Error(error.message);
     return (data as PublicSummaryRow[] | null) ?? [];
   },
   ["sailing-public-summary"],
   { revalidate: 30 }
 );
 
-export async function getSailingMemberCount(sailingId: string): Promise<number> {
-  const rows = await getCachedPublicSummary(sailingId);
+/** null means the lookup failed (not "zero members"), so callers can hide
+ * the number instead of showing a wrong 0. */
+async function loadPublicSummary(sailingId: string): Promise<PublicSummaryRow[] | null> {
+  try {
+    return await getCachedPublicSummary(sailingId);
+  } catch {
+    return null;
+  }
+}
+
+/** Traveler count, or null if it couldn't be fetched. */
+export async function getSailingMemberCount(sailingId: string): Promise<number | null> {
+  const rows = await loadPublicSummary(sailingId);
+  if (!rows) return null;
   return rows[0]?.member_count ?? 0;
 }
 
@@ -60,7 +76,7 @@ export async function getSailingMemberCount(sailingId: string): Promise<number> 
  * first three is an empty placeholder - no member data beyond that.
  */
 export async function getCachedSailingPassengers(sailingId: string): Promise<SailingPassengerRow[]> {
-  const rows = await getCachedPublicSummary(sailingId);
+  const rows = (await loadPublicSummary(sailingId)) ?? [];
   const count = rows[0]?.member_count ?? 0;
   return Array.from({ length: count }, (_, i) => ({
     user_id: rows[i]?.user_id ?? "",
@@ -76,7 +92,7 @@ export async function getCachedSailingPassengerNames(
   sailingId: string,
   userIds: string[]
 ): Promise<PublicProfileRow[]> {
-  const rows = await getCachedPublicSummary(sailingId);
+  const rows = (await loadPublicSummary(sailingId)) ?? [];
   return rows
     .filter((r) => r.user_id && userIds.includes(r.user_id))
     .map((r) => ({
