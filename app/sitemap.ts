@@ -14,10 +14,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const sailingIds = await getAllSailingIds();
-  const sailingRoutes: MetadataRoute.Sitemap = sailingIds.flatMap((id) => [
-    { url: `${BASE_URL}/sailing/${id}`, changeFrequency: "daily", priority: 0.8 },
-    { url: `${BASE_URL}/sailing/${id}/board`, changeFrequency: "daily", priority: 0.6 },
-  ]);
+  // /sailing/[id]/board is members-only and noindex - deliberately absent.
+  const sailingRoutes: MetadataRoute.Sitemap = sailingIds.map((id) => ({
+    url: `${BASE_URL}/sailing/${id}`,
+    changeFrequency: "daily",
+    priority: 0.8,
+  }));
 
   return [...staticRoutes, ...sailingRoutes];
 }

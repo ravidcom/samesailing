@@ -1506,3 +1506,99 @@ as $$
 $$;
 
 grant execute on function community_chat_presence() to authenticated;
+
+-- Board privacy (branch fix/board-privacy) ---------------------------------
+-- Intended rule: only a signed-in member of a sailing (or an admin) may see
+-- WHO is on it. Everyone else may only see how many travelers joined.
+-- Until this section is applied, anyone holding the public anon key can
+-- still call get_sailing_passengers() / read public_profiles directly, no
+-- matter what the Next.js pages do - so apply it BEFORE deploying the app
+-- change that switches /sailing/[id] to get_sailing_public_summary().
+
+-- 1) The full passenger list (profile jsonb: party type, age range,
+--    gender, kids, bio, goals, LGBTQ+ flag) is now members/admins only, and
+--    no longer callable by the anon role at all.
+create or replace function get_sailing_passengers(p_sailing_id text)
+returns table (
+  user_id uuid,
+  profile jsonb,
+  join_rank int,
+  joined_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select js.user_id, js.profile, js.join_rank, js.joined_at
+  from joined_sailings js
+  where js.sailing_id = p_sailing_id
+    and (private.is_sailing_member(auth.uid(), p_sailing_id) or is_admin());
+$$;
+
+revoke execute on function get_sailing_passengers(text) from public, anon;
+grant execute on function get_sailing_passengers(text) to authenticated;
+
+-- 2) What the public /sailing/[id] page is allowed to know: the traveler
+--    count and the emoji avatar of (at most) the first three members. No
+--    names, profiles, flags or ids beyond those three avatar keys.
+create or replace function get_sailing_public_summary(p_sailing_id text)
+returns table (
+  member_count bigint,
+  user_id uuid,
+  avatar text,
+  avatar_tint text
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  with m as (
+    select js.user_id, js.joined_at from joined_sailings js where js.sailing_id = p_sailing_id
+  ),
+  c as (select count(*) as n from m)
+  select c.n, s.user_id, p.avatar, p.avatar_tint
+  from c
+  left join lateral (select m.user_id from m order by m.joined_at, m.user_id limit 3) s on true
+  left join profiles p on p.id = s.user_id
+  where c.n > 0;
+$$;
+
+grant execute on function get_sailing_public_summary(text) to anon, authenticated;
+
+-- 3) public_profiles was readable by anon for EVERY account (display name
+--    when real-name mode, nickname, avatar, country). Now: signed-in users
+--    only, and only accounts that share a sailing with the caller (plus the
+--    caller's own row, and everything for admins).
+create or replace view public_profiles as
+select
+  p.id,
+  case when p.name_mode = 'real' then p.name else null end as name,
+  p.name_mode,
+  p.nickname,
+  p.avatar,
+  p.avatar_tint,
+  p.country
+from profiles p
+where auth.uid() is not null
+  and (
+    p.id = auth.uid()
+    or is_admin()
+    or exists (
+      select 1
+      from joined_sailings mine
+      join joined_sailings theirs on theirs.sailing_id = mine.sailing_id
+      where mine.user_id = auth.uid() and theirs.user_id = p.id
+    )
+  );
+
+revoke select on public_profiles from anon;
+grant select on public_profiles to authenticated;
+
+-- 4) The community-chat policies above had no role/sign-in condition, so an
+--    anonymous request could read the global room. Require a signed-in user.
+drop policy if exists "Any signed-in user can read the global room" on group_messages;
+create policy "Any signed-in user can read the global room"
+  on group_messages for select
+  using (sailing_id = 'global' and auth.uid() is not null);
