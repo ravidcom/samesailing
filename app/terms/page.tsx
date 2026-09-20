@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Terms of Use - SameSailing.com" };
 
 export default function TermsPage() {
   return (
-    <PolicyPage eyebrow="Legal" title="Terms of Use" updated="August 2026">
+    <PolicyPage eyebrow="Legal" title="Terms of Use" updated="September 2026">
       <p>
         Welcome to SameSailing.com. These Terms of Use (&ldquo;Terms&rdquo;)
         govern your access to and use of SameSailing.com (the
@@ -48,19 +48,23 @@ export default function TermsPage() {
         apply to your use of them.
       </p>
 
-      <h2>Your sailing profile is publicly visible</h2>
+      <h2>Who can see your sailing profile</h2>
       <p>
-        Each sailing&apos;s passenger board is a public web page. The profile
-        you create for a sailing — your display name or nickname, avatar,
-        party type, age range, country, bio, interests, and any optional
-        badges you turn on — appears on that board and can be viewed by{" "}
-        <strong>anyone on the internet</strong>, including people without a
-        SameSailing.com account, and may appear in search engine results.
-        You decide how much to share: your account email is never shown to
-        anyone, and your real name is only shown if you choose real-name mode
-        instead of a nickname — until you choose either, you&apos;re shown
-        under a generated handle. Don&apos;t put anything in your profile you
-        wouldn&apos;t want publicly visible.
+        Each sailing&apos;s passenger board is visible to signed-in members
+        who have joined that sailing. The profile you create for a sailing —
+        your display name or nickname, avatar, party type, age range,
+        country, bio, interests, and any optional badges you turn on —
+        appears on that board and can be seen by{" "}
+        <strong>other members who joined the same sailing</strong>. Accounts
+        are not verified, so anyone can join a sailing. Passenger boards are
+        not shown to visitors without an account and are not indexed by
+        search engines; a visitor without an account can only see how many
+        travelers have joined. You decide how much to share: your account
+        email is never shown to anyone, and your real name is only shown if
+        you choose real-name mode instead of a nickname — until you choose
+        either, you&apos;re shown under a generated handle. Don&apos;t put
+        anything in your profile you wouldn&apos;t want other members of
+        your sailing to see.
       </p>
 
       <h2>Travel companions and children</h2>
@@ -69,7 +73,8 @@ export default function TermsPage() {
         the ages or genders of children in your party — you confirm that you
         are their parent or legal guardian (or have the consent of the adult
         in question), and that you understand those details appear on the
-        public passenger board as part of your profile. Children can never
+        passenger board, visible to other members of your sailing, as part of
+        your profile. Children can never
         hold accounts or use the Service themselves.
       </p>
 
@@ -78,7 +83,8 @@ export default function TermsPage() {
         Some profile options, such as the LGBTQ+ Member badge, share
         personal information that may be sensitive. These are always
         optional and off by default. If you turn one on, it&apos;s displayed
-        publicly on the passenger board like the rest of your profile —
+        on the passenger board to other members of your sailing, like the
+        rest of your profile —
         consider your own comfort and safety, including the laws and
         attitudes of the countries your sailing visits, before enabling
         one. You can turn a badge off at any time.

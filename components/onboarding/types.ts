@@ -36,7 +36,7 @@ export const emptyFormData: OnboardingFormData = {
   country: "",
   goals: [],
   lgbtq: false,
-  nameMode: "real",
+  nameMode: "nick",
   nickname: "",
   notifyActivity: false,
   notifyRecs: false,

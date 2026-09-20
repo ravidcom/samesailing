@@ -22,8 +22,9 @@ export default function TrustSafetyPage() {
         <li>
           Profiles show only what you choose to share — party type, age
           range, country, and what you&apos;re looking for. Passenger boards
-          are public pages, so share only what you&apos;re comfortable with
-          the world seeing.
+          are visible to other members who joined the same sailing - accounts
+          aren&apos;t verified, so share only what you&apos;re comfortable
+          with them seeing.
         </li>
         <li>
           All conversations happen inside the app&apos;s group chat and private

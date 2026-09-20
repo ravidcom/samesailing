@@ -17,6 +17,9 @@ export default function Footer() {
         <Link href="/terms" className="hover:text-muted">
           Terms of use
         </Link>
+        <Link href="/data-deletion" className="hover:text-muted">
+          Data deletion
+        </Link>
         <Link href="/trust-safety" className="hover:text-muted">
           Trust &amp; safety
         </Link>

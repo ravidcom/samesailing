@@ -9,15 +9,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE_URL}/contact`, changeFrequency: "yearly", priority: 0.3 },
     { url: `${BASE_URL}/privacy`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE_URL}/terms`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${BASE_URL}/data-deletion`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE_URL}/trust-safety`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${BASE_URL}/accessibility`, changeFrequency: "yearly", priority: 0.2 },
   ];
 
   const sailingIds = await getAllSailingIds();
-  const sailingRoutes: MetadataRoute.Sitemap = sailingIds.flatMap((id) => [
-    { url: `${BASE_URL}/sailing/${id}`, changeFrequency: "daily", priority: 0.8 },
-    { url: `${BASE_URL}/sailing/${id}/board`, changeFrequency: "daily", priority: 0.6 },
-  ]);
+  // /sailing/[id]/board is members-only and noindex - deliberately absent.
+  const sailingRoutes: MetadataRoute.Sitemap = sailingIds.map((id) => ({
+    url: `${BASE_URL}/sailing/${id}`,
+    changeFrequency: "daily",
+    priority: 0.8,
+  }));
 
   return [...staticRoutes, ...sailingRoutes];
 }

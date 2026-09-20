@@ -5,15 +5,15 @@ const FAQS = [
   },
   {
     q: "Is SameSailing.com free to use?",
-    a: "Yes, SameSailing.com is currently free. You can create a profile, browse a passenger board, and chat with fellow cruisers at no cost.",
+    a: "Yes, SameSailing.com is currently free. You can create a profile, see who has joined your sailing, and chat with fellow cruisers at no cost.",
   },
   {
     q: "Will other passengers see my real name or contact details?",
-    a: "Only if you choose to. Your profile appears on your sailing's passenger board, but your email is never shown, and your real name only appears if you pick real-name mode - otherwise you choose a nickname, or you're shown under a generated handle (like \"Coral Family\") until you do.",
+    a: "Only if you choose to. Your profile appears on your sailing's passenger board, which only members who joined that sailing can see - it is not shown to the public or indexed by search engines. Your email is never shown, and your real name only appears if you pick real-name mode - otherwise you choose a nickname, or you're shown under a generated handle (like \"Coral Family\") until you do.",
   },
   {
     q: "How do I find my cruise's passenger board?",
-    a: "Search by cruise line, ship, and departure date above to land directly on your exact sailing's passenger board - no account needed to browse who else is already on it.",
+    a: "Search by cruise line, ship, and departure date above to find your exact sailing. Join it (it's free) to see who's aboard - anyone without an account only sees how many travelers have joined.",
   },
   {
     q: "Can I use SameSailing.com solo, with family, or with a group?",

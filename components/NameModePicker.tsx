@@ -54,11 +54,6 @@ export default function NameModePicker({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-bold text-charcoal">{m.title}</span>
-                  {m.id === "real" ? (
-                    <span className="rounded-full bg-[#f2f7f7] px-1.5 py-0.5 text-[10px] font-bold tracking-[.06em] text-muted-2 uppercase">
-                      Recommended
-                    </span>
-                  ) : null}
                 </div>
                 <div className="mt-0.5 text-xs leading-relaxed text-muted">
                   {m.body}{" "}
@@ -82,7 +77,7 @@ export default function NameModePicker({
                 {m.id === "real" && selected ? (
                   <div className="mt-2.5 flex items-start gap-1.5 rounded-[9px] border border-border bg-input px-2.5 py-2 text-[11.5px] leading-relaxed text-muted">
                     <span>ℹ</span>
-                    <span>Everyone on your sailings will see it. You can switch back any time.</span>
+                    <span>Other members who joined your sailings will see it. You can switch back any time.</span>
                   </div>
                 ) : null}
               </div>

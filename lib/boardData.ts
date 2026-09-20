@@ -2,7 +2,8 @@ import { getSailingById } from "@/lib/cruiseData";
 import { daysUntilDate, countdownLabelForDays } from "@/lib/dateMath";
 import { passengerFromProfile, type Passenger } from "@/lib/passengers";
 import type { NameFields } from "@/lib/displayName";
-import { getCachedSailingPassengers, getCachedSailingPassengerNames } from "@/lib/sailingPassengers";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getMemberPassengerData } from "@/lib/sailingPassengers";
 import type { OnboardingProfile } from "@/lib/auth-context";
 import { shortDateWithYear } from "@/lib/sailingLabel";
 
@@ -19,25 +20,21 @@ export type BoardData = {
 /** Everything the Passengers screen needs for one sailing - shared by the
  * initial server render (app/sailing/[id]/board/page.tsx) and the
  * client-side re-fetch the in-place sailing switcher uses, so the two never
- * compute this differently. */
-export async function getBoardData(sailingId: string): Promise<BoardData | null> {
+ * compute this differently. Member/admin only: callers must have passed
+ * canViewSailingMembers() and hand in the caller's own `supabase` client. */
+export async function getBoardData(sailingId: string, supabase: SupabaseClient): Promise<BoardData | null> {
   const sailing = await getSailingById(sailingId);
   if (!sailing) return null;
 
-  const rows = await getCachedSailingPassengers(sailing.id);
+  const { rows, names: nameRows } = await getMemberPassengerData(supabase, sailing.id);
   const joined = rows.filter(
     (r): r is (typeof rows)[number] & { profile: OnboardingProfile } => !!r.profile
   );
 
   // Display names and avatars are account-level (lib/displayName.ts,
-  // lib/avatars.ts), not stored in the per-sailing profile, so they need a
-  // separate join against `profiles` - via the public_profiles view, which
-  // masks `name` down to null unless the account picked real-name mode
-  // (the raw table itself is no longer publicly readable for other users).
-  const nameRows = await getCachedSailingPassengerNames(
-    sailing.id,
-    joined.map((r) => r.user_id)
-  );
+  // lib/avatars.ts), not stored in the per-sailing profile, so they come
+  // from a separate lookup against the public_profiles view, which masks
+  // `name` down to null unless the account picked real-name mode.
   const namesById = new Map(nameRows.map((r) => [r.id, r]));
 
   const passengers = joined.map((r) => {
