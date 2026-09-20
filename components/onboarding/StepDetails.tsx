@@ -78,7 +78,7 @@ export default function StepDetails({ data, update, error, onContinue, onBack, c
           <div className="mt-0.5 text-xs leading-relaxed text-muted">
             Show this on your card, let others filter for it, and unlock the
             LGBTQ+ group chat for this sailing. Optional, and only visible to
-            fellow passengers on this sailing.
+            other members who joined this sailing.
           </div>
         </div>
         <Toggle on={data.lgbtq} onChange={() => update({ lgbtq: !data.lgbtq })} label="LGBTQ+ community member" />

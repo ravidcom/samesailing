@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: "Privacy Policy - SameSailing.com" };
 
 export default function PrivacyPage() {
   return (
-    <PolicyPage eyebrow="Legal" title="Privacy Policy" updated="August 2026">
+    <PolicyPage eyebrow="Legal" title="Privacy Policy" updated="September 2026">
       <p>
         SameSailing.com helps travelers on the same cruise connect before they
         board. This page explains what we collect, how it&apos;s used, and what
@@ -19,16 +19,20 @@ export default function PrivacyPage() {
         type, age range, country, what you&apos;re looking for on that trip,
         and any optional details you add, such as your travel companions or
         an optional identity badge. We also store the messages you send
-        through the Service so we can deliver and display them.
+        through the Service so we can deliver and display them. Your email
+        address is used for your account and, if you opt in, notifications;
+        it is never shown to other users.
       </p>
 
       <h2>Who can see your profile</h2>
       <ul>
         <li>
-          Each sailing&apos;s passenger board is a <strong>public web
-          page</strong> — the profile you create for a sailing can be viewed
-          by anyone on the internet, including people without an account,
-          and may appear in search engine results.
+          Each sailing&apos;s passenger board is visible to{" "}
+          <strong>signed-in members who joined that sailing</strong>. The
+          profile you create for a sailing can be seen by those members.
+          Accounts are not verified, so anyone can join a sailing. Passenger
+          boards are not indexed by search engines, and visitors without an
+          account only see how many travelers have joined.
         </li>
         <li>
           Your email address is never shown to anyone. Your real name is
@@ -37,8 +41,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           Optional details you add — like children&apos;s ages in a family
-          profile, or the LGBTQ+ Member badge — appear on the public board
-          too. They&apos;re always your choice, and you can edit or remove
+          profile, or the LGBTQ+ Member badge — appear on the passenger
+          board to members of your sailing too. They&apos;re always your choice, and you can edit or remove
           them at any time.
         </li>
         <li>

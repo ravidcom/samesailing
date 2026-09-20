@@ -35,8 +35,9 @@ export default function ProfilePage() {
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   // "anon" is a legacy value from before the picker dropped that option —
   // treat it the same as never having chosen, so the picker always shows
-  // one of the two remaining options selected instead of neither.
-  const [modeDraft, setModeDraft] = useState<NameMode>(nameMode === "anon" ? "real" : nameMode);
+  // one of the two remaining options selected instead of neither. Nickname,
+  // not real name: nothing should default to showing a real name.
+  const [modeDraft, setModeDraft] = useState<NameMode>(nameMode === "anon" ? "nick" : nameMode);
   const [nickDraft, setNickDraft] = useState(nickname);
   const [nameError, setNameError] = useState("");
 

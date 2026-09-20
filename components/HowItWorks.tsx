@@ -3,13 +3,13 @@ const STEPS = [
     bg: "#dff1f2",
     icon: "🔍",
     title: "Find your sailing",
-    body: "Search by ship and date to land on your sailing's passenger board.",
+    body: "Search by ship and date to find your exact sailing.",
   },
   {
     bg: "#fff3eb",
     icon: "👀",
     title: "Browse profiles",
-    body: "See party types, languages, and interests. Names and contact details stay hidden.",
+    body: "Once you join, see who's aboard: party types, interests, and more. Contact details stay hidden.",
   },
   {
     bg: "#dff1f2",
