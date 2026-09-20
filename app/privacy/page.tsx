@@ -16,12 +16,32 @@ export default function PrivacyPage() {
       <p>
         When you create an account, we store your name, email address, and the
         travel details you choose to share for each sailing you join — party
-        type, age range, country, what you&apos;re looking for on that trip,
+        type, gender, age range, country, what you&apos;re looking for on that trip,
         and any optional details you add, such as your travel companions or
         an optional identity badge. We also store the messages you send
         through the Service so we can deliver and display them. Your email
         address is used for your account and, if you opt in, notifications;
         it is never shown to other users.
+      </p>
+
+      <h2>Signing in with Google or Facebook</h2>
+      <p>
+        You can create an account or sign in with Google or Facebook. We
+        don’t ask those services for any extra permissions beyond what they
+        share by default with an app you sign in to, which is your name and
+        email address. We use them to set up your account. We never receive
+        your Google or Facebook password.
+      </p>
+
+      <h2>Age requirement</h2>
+      <p>
+        You must be at least 18 years old to create an account (see our{" "}
+        <a href="/terms" className="font-semibold text-teal">
+          Terms of Use
+        </a>
+        ). Children can’t hold accounts; if a parent adds details about
+        children in their party, those details are part of the parent’s
+        profile.
       </p>
 
       <h2>Who can see your profile</h2>
@@ -78,7 +98,11 @@ export default function PrivacyPage() {
         recipients. You can permanently delete your account and its data at
         any time from the <strong>Delete my account</strong> option on your
         profile page — this removes your profile, sailing memberships, and
-        account details. As with leaving a sailing, messages you&apos;ve
+        account details. See{" "}
+        <a href="/data-deletion" className="font-semibold text-teal">
+          how to delete your account and data
+        </a>
+        . As with leaving a sailing, messages you&apos;ve
         already sent may remain visible to their recipients.
       </p>
 
