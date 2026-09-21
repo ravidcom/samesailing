@@ -18,7 +18,8 @@ export default function BoardGate({
   shipName: string;
   dateLabel: string;
   port: string;
-  travelerCount: number;
+  /** null when the count couldn't be fetched - the line is hidden then. */
+  travelerCount: number | null;
 }) {
   return (
     <main className="flex min-h-screen items-start justify-center px-4 pt-[100px] pb-16">
@@ -32,9 +33,11 @@ export default function BoardGate({
           </div>
         </div>
         <div className="px-8 py-7 text-center">
-          <div className="text-[15px] font-semibold text-charcoal">
-            {travelerCount} traveler{travelerCount === 1 ? "" : "s"} {travelerCount === 1 ? "has" : "have"} joined this sailing
-          </div>
+          {travelerCount !== null ? (
+            <div className="text-[15px] font-semibold text-charcoal">
+              {travelerCount} traveler{travelerCount === 1 ? "" : "s"} {travelerCount === 1 ? "has" : "have"} joined this sailing
+            </div>
+          ) : null}
           <p className="mt-2 text-[13.5px] leading-relaxed text-muted">
             Join this sailing to see who&apos;s aboard. Traveler profiles are only visible to members of the same
             sailing.
